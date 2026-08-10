@@ -1,3 +1,5 @@
+const accountEl = document.getElementById('account-summary');
+
 function fmtSeconds(s) {
   if (s % 60 === 0) return `${s / 60} min`;
   return `${s}s`;
@@ -5,6 +7,42 @@ function fmtSeconds(s) {
 
 function fmtPct(fraction) {
   return `${Math.round(fraction * 100)}%`;
+}
+
+function plBadgeHtml(acct) {
+  const up = acct.pl_today >= 0;
+  const sign = up ? '+' : '';
+  return `
+    <span class="pl-badge ${up ? 'pl-up' : 'pl-down'}" title="Total account value change since yesterday's close (realized + unrealized)">
+      P/L Today: <b>${sign}$${acct.pl_today.toFixed(2)} (${sign}${acct.pl_today_pct.toFixed(2)}%)</b>
+    </span>
+  `;
+}
+
+function realizedBadgeHtml(acct) {
+  if (acct.realized_pl == null) return '';
+  const up = acct.realized_pl >= 0;
+  const sign = up ? '+' : '';
+  return `
+    <span class="pl-badge ${up ? 'pl-up' : 'pl-down'}" title="Cumulative realized gain/loss since account inception (excludes open positions still unrealized)">
+      Realized: <b>${sign}$${acct.realized_pl.toFixed(2)}</b>
+    </span>
+  `;
+}
+
+async function refreshAccount() {
+  try {
+    const res = await fetch('/api/account');
+    const acct = await res.json();
+    accountEl.innerHTML = `
+      <span>Equity: <b>$${acct.portfolio_value.toFixed(2)}</b></span>
+      <span>Cash: <b>$${acct.cash.toFixed(2)}</b></span>
+      ${plBadgeHtml(acct)}
+      ${realizedBadgeHtml(acct)}
+    `;
+  } catch (e) {
+    accountEl.textContent = 'Account unavailable — check Alpaca keys in .env';
+  }
 }
 
 async function load() {
@@ -42,3 +80,5 @@ async function load() {
 }
 
 load();
+refreshAccount();
+setInterval(refreshAccount, 30000);
