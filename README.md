@@ -24,6 +24,10 @@ Every `POLL_INTERVAL_SECONDS` (default 15 min — see the quota note below):
    - `hold` or confidence below `MIN_CONFIDENCE` → skip (logged, not traded).
    - Symbol traded within the last `COOLDOWN_MINUTES` → skip.
    - `sell` with no existing position in that symbol → skip (no shorting by default).
+   - Symbol isn't tradable on Alpaca (foreign listing, inactive/expired
+     warrant, etc.) → skip. Checked via Alpaca's own asset status before
+     attempting an order, so this shows as a clean skip in the Trade Log
+     rather than an order-rejection error.
 4. If none of those hit: `buy` submits a market order sized between
    `MIN_TRADE_USD` and `MAX_TRADE_USD` (scaled by confidence); `sell` closes
    the existing position.

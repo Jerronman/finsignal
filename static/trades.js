@@ -2,7 +2,9 @@ const accountEl = document.getElementById('account-summary');
 const tbody = document.getElementById('trades-body');
 const showSkippedToggle = document.getElementById('show-skipped');
 
-const EXECUTED = new Set(['bought', 'sold', 'profit_take']);
+// Shown even with "show skipped" off -- these are attempted trades that
+// were blocked, not routine guardrail skips (hold/low-confidence/cooldown).
+const ALWAYS_VISIBLE = new Set(['bought', 'sold', 'profit_take', 'error', 'skipped_not_tradable']);
 
 function escapeHtml(s) {
   const div = document.createElement('div');
@@ -49,7 +51,7 @@ function rowHtml(t) {
 async function loadTrades() {
   const res = await fetch('/api/trades?limit=300');
   const trades = await res.json();
-  const filtered = showSkippedToggle.checked ? trades : trades.filter(t => EXECUTED.has(t.outcome) || t.outcome === 'error');
+  const filtered = showSkippedToggle.checked ? trades : trades.filter(t => ALWAYS_VISIBLE.has(t.outcome));
   tbody.innerHTML = filtered.length
     ? filtered.map(rowHtml).join('')
     : '<tr><td colspan="6" class="meta">No trades yet</td></tr>';

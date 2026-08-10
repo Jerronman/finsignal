@@ -11,6 +11,13 @@ from typing import Any
 
 class BrokerInterface(ABC):
     @abstractmethod
+    def is_tradable(self, symbol: str) -> bool:
+        """Whether the broker can actually trade this symbol -- checked
+        before attempting an order so unsupported symbols (foreign
+        listings, inactive/expired warrants, etc.) produce a clean skip
+        instead of an order-rejection error."""
+
+    @abstractmethod
     def place_notional_order(self, symbol: str, side: str, notional_usd: float) -> dict[str, Any]:
         """Submit a market order sized in dollars. side is 'buy' or 'sell'."""
 

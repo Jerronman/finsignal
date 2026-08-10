@@ -42,6 +42,15 @@ async def _handle_verdict(article_id: str, verdict: dict) -> None:
         db.insert_trade(article_id, symbol, "skipped_cooldown", None, None, reasoning)
         return
 
+    tradable = await asyncio.to_thread(broker.is_tradable, symbol)
+    if not tradable:
+        db.insert_trade(
+            article_id, symbol, "skipped_not_tradable", None, None,
+            f"{reasoning} (Alpaca doesn't support trading {symbol} -- "
+            f"foreign listing, inactive/expired warrant, or otherwise unavailable.)",
+        )
+        return
+
     try:
         if action == "buy":
             notional = _confidence_to_notional(confidence)

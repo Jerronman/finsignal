@@ -5,7 +5,7 @@ import logging
 from typing import Any
 
 from alpaca.trading.client import TradingClient
-from alpaca.trading.enums import OrderSide, QueryOrderStatus, TimeInForce
+from alpaca.trading.enums import AssetStatus, OrderSide, QueryOrderStatus, TimeInForce
 from alpaca.trading.requests import GetOrdersRequest, MarketOrderRequest
 
 from app import config
@@ -21,6 +21,15 @@ class AlpacaBroker(BrokerInterface):
             config.ALPACA_SECRET_KEY,
             paper=config.ALPACA_PAPER,
         )
+
+    def is_tradable(self, symbol: str) -> bool:
+        try:
+            asset = self._client.get_asset(symbol)
+        except Exception:
+            # Includes "asset not found" -- covers foreign-exchange tickers
+            # (e.g. IFT.AX) that don't exist in Alpaca's universe at all.
+            return False
+        return bool(asset.tradable) and asset.status == AssetStatus.ACTIVE
 
     def place_notional_order(self, symbol: str, side: str, notional_usd: float) -> dict[str, Any]:
         order_side = OrderSide.BUY if side == "buy" else OrderSide.SELL
