@@ -43,8 +43,18 @@ header h1 { margin: 0; font-size: 20px; }
   font-weight: 600;
 }
 
-.account-summary { font-size: 14px; color: var(--muted); display: flex; gap: 16px; flex-wrap: wrap; }
+.account-summary { font-size: 14px; color: var(--muted); display: flex; gap: 16px; flex-wrap: wrap; align-items: center; }
 .account-summary b { color: var(--text); }
+
+.pl-badge {
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  font-weight: 500;
+}
+.pl-badge.pl-up { color: var(--green); border-color: var(--green); background: rgba(51,193,122,.12); }
+.pl-badge.pl-down { color: var(--red); border-color: var(--red); background: rgba(224,90,90,.12); }
+.pl-badge b { color: inherit; }
 
 .tabs { display: flex; gap: 6px; }
 .tabs a {

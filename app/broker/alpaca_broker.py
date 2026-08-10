@@ -92,11 +92,16 @@ class AlpacaBroker(BrokerInterface):
 
     def get_account(self) -> dict[str, Any]:
         acct = self._client.get_account()
+        equity = float(acct.equity)
+        last_equity = float(acct.last_equity) if acct.last_equity is not None else equity
+        pl_today = equity - last_equity
         return {
             "cash": float(acct.cash),
             "portfolio_value": float(acct.portfolio_value),
             "buying_power": float(acct.buying_power),
-            "equity": float(acct.equity),
+            "equity": equity,
+            "pl_today": pl_today,
+            "pl_today_pct": (pl_today / last_equity * 100) if last_equity else 0.0,
         }
 
     def get_orders(self, limit: int = 50) -> list[dict[str, Any]]:

@@ -55,6 +55,16 @@ async function loadTrades() {
     : '<tr><td colspan="6" class="meta">No trades yet</td></tr>';
 }
 
+function plBadgeHtml(acct) {
+  const up = acct.pl_today >= 0;
+  const sign = up ? '+' : '';
+  return `
+    <span class="pl-badge ${up ? 'pl-up' : 'pl-down'}">
+      P/L Today: <b>${sign}$${acct.pl_today.toFixed(2)} (${sign}${acct.pl_today_pct.toFixed(2)}%)</b>
+    </span>
+  `;
+}
+
 async function refreshAccount() {
   try {
     const res = await fetch('/api/account');
@@ -62,7 +72,7 @@ async function refreshAccount() {
     accountEl.innerHTML = `
       <span>Equity: <b>$${acct.portfolio_value.toFixed(2)}</b></span>
       <span>Cash: <b>$${acct.cash.toFixed(2)}</b></span>
-      <span>Buying power: <b>$${acct.buying_power.toFixed(2)}</b></span>
+      ${plBadgeHtml(acct)}
     `;
   } catch (e) {
     accountEl.textContent = 'Account unavailable — check Alpaca keys in .env';
