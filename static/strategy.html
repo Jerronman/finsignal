@@ -13,6 +13,7 @@
     <a href="/">Activity</a>
     <a href="/trades">Trade Log</a>
     <a href="/strategy" class="active">Strategy</a>
+    <a href="/options">Options</a>
   </nav>
   <div id="account-summary" class="account-summary">Loading account…</div>
 </header>
@@ -74,6 +75,42 @@
       closes if a fresh bearish news item produces a <code>sell</code>
       verdict for that specific symbol. This is a deliberate, known gap,
       not an oversight.
+    </p>
+  </section>
+
+  <section>
+    <h2>Options strategy</h2>
+    <p>
+      A separate pipeline that reuses the exact same news verdicts as
+      stocks above (no extra Marketaux calls) but always trades options
+      instead: a <span class="pill buy">buy</span> verdict Buy-to-Opens a
+      <strong>call</strong>, a <span class="pill sell">sell</span> verdict
+      Buy-to-Opens a <strong>put</strong>. Never writes/sells options
+      short, never reacts to <code>hold</code>.
+    </p>
+    <ul>
+      <li>Confidence below <b id="opt-min-confidence">…</b> → skipped (its own bar, separate from the stock one above)</li>
+      <li>That underlying already options-traded within the last <b id="opt-cooldown">…</b> → skipped</li>
+      <li>Strike: nearest available to <b id="opt-otm">…</b> out of the money</li>
+      <li>Expiration: nearest Friday <strong>at least 2 days out</strong> — a signal on Thursday or Friday rolls to the following week instead</li>
+      <li>Liquidity: skipped if open interest is below <b id="opt-oi">…</b>, or the bid-ask spread is wider than <b id="opt-spread">…</b> of the midpoint, or there's no real bid at all</li>
+      <li>Sizing: up to <b id="opt-budget">…</b> per trade — <code>floor(budget / (ask price × 100))</code> contracts, skipped entirely if even 1 contract exceeds the budget</li>
+    </ul>
+    <p>Take-profit tiers, checked roughly every <b id="opt-interval">…</b>, same ratchet mechanic as stocks but keyed off the option's own gain since entry:</p>
+    <div class="table-scroll">
+      <table id="opt-tiers-table">
+        <thead>
+          <tr><th>Gain since entry</th><th>Action</th><th>Cumulative sold</th></tr>
+        </thead>
+        <tbody id="opt-tiers-body"></tbody>
+      </table>
+    </div>
+    <p class="hint" style="color: var(--amber);">
+      <strong>Forced close the Thursday before expiration, regardless of P&amp;L.</strong>
+      This is a time-based exit, not a loss-based stop — a losing contract
+      is never cut early, it rides all the way to that Thursday and is
+      then sold for whatever it's worth, however little. There is no
+      stop-loss for options, by explicit choice.
     </p>
   </section>
 </main>

@@ -45,3 +45,20 @@ class BrokerInterface(ABC):
     @abstractmethod
     def get_orders(self, limit: int = 50) -> list[dict[str, Any]]:
         ...
+
+    # --- Options (contract discovery lives in app/options_client.py;
+    # these three are just execution + position lookup, same as the
+    # equity methods above) ---
+
+    @abstractmethod
+    def place_option_order(self, contract_symbol: str, qty: int) -> dict[str, Any]:
+        """Buy-to-Open qty contracts of contract_symbol."""
+
+    @abstractmethod
+    def sell_option_qty(self, contract_symbol: str, qty: int) -> dict[str, Any]:
+        """Sell-to-Close qty contracts (partial or full) of contract_symbol."""
+
+    @abstractmethod
+    def get_option_positions(self) -> list[dict[str, Any]]:
+        """Currently open option positions (distinct from get_positions(),
+        which is equities only)."""

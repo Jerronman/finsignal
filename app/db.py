@@ -7,6 +7,11 @@ Tables:
   watchlist          symbols you're extra-polling for news
   symbol_cooldowns   last time we news-traded each symbol, for the cooldown guardrail
   profit_take_plans  per-symbol tiered take-profit plan (original share count + which tiers have fired)
+
+  -- options (separate pipeline, same news signal) --
+  option_cooldowns      last time we options-traded each underlying symbol
+  option_trades         one row per options trade decision -- traded or skipped, with why
+  option_position_plans per-contract tiered take-profit plan (original contract count + tiers fired)
 """
 from __future__ import annotations
 
@@ -62,6 +67,38 @@ CREATE TABLE IF NOT EXISTS symbol_cooldowns (
 CREATE TABLE IF NOT EXISTS profit_take_plans (
     symbol TEXT PRIMARY KEY,
     original_qty REAL NOT NULL,
+    triggered_tiers TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS option_cooldowns (
+    underlying_symbol TEXT PRIMARY KEY,
+    last_trade_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS option_trades (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    article_id TEXT,
+    underlying_symbol TEXT NOT NULL,
+    contract_symbol TEXT,
+    option_type TEXT,
+    strike REAL,
+    expiration_date TEXT,
+    outcome TEXT NOT NULL,
+    qty INTEGER,
+    price_usd REAL,
+    order_id TEXT,
+    reasoning TEXT,
+    created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS option_position_plans (
+    contract_symbol TEXT PRIMARY KEY,
+    underlying_symbol TEXT NOT NULL,
+    option_type TEXT NOT NULL,
+    strike REAL NOT NULL,
+    expiration_date TEXT NOT NULL,
+    original_qty INTEGER NOT NULL,
     triggered_tiers TEXT NOT NULL DEFAULT '',
     created_at TEXT NOT NULL
 );
@@ -242,6 +279,114 @@ def add_watchlist(symbol: str) -> None:
 def remove_watchlist(symbol: str) -> None:
     with get_conn() as conn:
         conn.execute("DELETE FROM watchlist WHERE symbol = ?", (symbol.upper(),))
+
+
+def is_in_option_cooldown(underlying_symbol: str, cooldown_minutes: int) -> bool:
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT last_trade_at FROM option_cooldowns WHERE underlying_symbol = ?", (underlying_symbol,)
+        ).fetchone()
+    if not row:
+        return False
+    last = datetime.fromisoformat(row["last_trade_at"])
+    return (datetime.now(timezone.utc) - last).total_seconds() < cooldown_minutes * 60
+
+
+def set_option_cooldown(underlying_symbol: str) -> None:
+    with get_conn() as conn:
+        conn.execute(
+            "INSERT INTO option_cooldowns (underlying_symbol, last_trade_at) VALUES (?, ?) "
+            "ON CONFLICT(underlying_symbol) DO UPDATE SET last_trade_at = excluded.last_trade_at",
+            (underlying_symbol, now_iso()),
+        )
+
+
+def insert_option_trade(
+    article_id: str | None,
+    underlying_symbol: str,
+    contract_symbol: str | None,
+    option_type: str | None,
+    strike: float | None,
+    expiration_date: str | None,
+    outcome: str,
+    qty: int | None,
+    price_usd: float | None,
+    order_id: str | None,
+    reasoning: str,
+) -> None:
+    with get_conn() as conn:
+        conn.execute(
+            "INSERT INTO option_trades (article_id, underlying_symbol, contract_symbol, option_type, strike, "
+            "expiration_date, outcome, qty, price_usd, order_id, reasoning, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                article_id, underlying_symbol, contract_symbol, option_type, strike, expiration_date,
+                outcome, qty, price_usd, order_id, reasoning, now_iso(),
+            ),
+        )
+
+
+def get_option_trades(limit: int = 100) -> list[dict[str, Any]]:
+    with get_conn() as conn:
+        rows = conn.execute(
+            """
+            SELECT t.*, n.headline, n.url as headline_url
+            FROM option_trades t
+            LEFT JOIN news_items n ON n.id = t.article_id
+            ORDER BY t.created_at DESC
+            LIMIT ?
+            """,
+            (limit,),
+        ).fetchall()
+        return [dict(r) for r in rows]
+
+
+def get_option_position_plan(contract_symbol: str) -> dict[str, Any] | None:
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT * FROM option_position_plans WHERE contract_symbol = ?", (contract_symbol,)
+        ).fetchone()
+    if not row:
+        return None
+    plan = dict(row)
+    plan["triggered_tiers"] = {float(t) for t in plan["triggered_tiers"].split(",") if t}
+    return plan
+
+
+def create_option_position_plan(
+    contract_symbol: str, underlying_symbol: str, option_type: str, strike: float,
+    expiration_date: str, original_qty: int,
+) -> None:
+    with get_conn() as conn:
+        conn.execute(
+            "INSERT OR IGNORE INTO option_position_plans "
+            "(contract_symbol, underlying_symbol, option_type, strike, expiration_date, original_qty, "
+            "triggered_tiers, created_at) VALUES (?, ?, ?, ?, ?, ?, '', ?)",
+            (contract_symbol, underlying_symbol, option_type, strike, expiration_date, original_qty, now_iso()),
+        )
+
+
+def mark_option_tier_triggered(contract_symbol: str, threshold: float) -> None:
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT triggered_tiers FROM option_position_plans WHERE contract_symbol = ?", (contract_symbol,)
+        ).fetchone()
+        existing = [t for t in (row["triggered_tiers"] if row else "").split(",") if t]
+        existing.append(str(threshold))
+        conn.execute(
+            "UPDATE option_position_plans SET triggered_tiers = ? WHERE contract_symbol = ?",
+            (",".join(existing), contract_symbol),
+        )
+
+
+def clear_stale_option_plans(open_contract_symbols: set[str]) -> None:
+    with get_conn() as conn:
+        rows = conn.execute("SELECT contract_symbol FROM option_position_plans").fetchall()
+        stale = [r["contract_symbol"] for r in rows if r["contract_symbol"] not in open_contract_symbols]
+        if stale:
+            conn.executemany(
+                "DELETE FROM option_position_plans WHERE contract_symbol = ?", [(s,) for s in stale]
+            )
 
 
 def get_recent_activity(limit: int = 50) -> list[dict[str, Any]]:

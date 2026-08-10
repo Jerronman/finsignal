@@ -85,8 +85,42 @@ closer-to-real-time polling.
   buy/sell logic and the take-profit tiers, rendered live from whatever's
   actually configured right now (not a static description that can drift
   out of sync with `.env`).
+- **Options** (`/options`) — separate options-trading pipeline, see below.
 - New items and executed trades trigger a browser notification and are read
   aloud (Web Speech API) — toggle off with the checkbox if it gets noisy.
+
+## Options trading
+
+A second, independent pipeline that reuses the exact same news verdicts as
+stocks (no extra Marketaux calls) but always trades options instead:
+
+- `buy` verdict → **Buy-to-Open a call**; `sell` verdict → **Buy-to-Open a
+  put**. Never writes/sells options short, never reacts to `hold`.
+- **Weekly, ~`OPTIONS_OTM_PCT`** (default 5%) **out of the money.** Strike
+  is the nearest available to that target, at the earliest listed
+  expiration on/after the target date (so a holiday or thin chain doesn't
+  come up empty).
+- **Expiration**: the nearest Friday **at least 2 days out** — a signal on
+  Thursday or Friday rolls to the *following* week's Friday instead of the
+  1-or-0-day-out one.
+- **Liquidity filter** (checked before every order): skipped if open
+  interest is below `OPTIONS_MIN_OPEN_INTEREST` (default 50), the bid-ask
+  spread is wider than `OPTIONS_MAX_SPREAD_PCT` (default 15% of midpoint),
+  or there's no real bid at all.
+- **Sizing**: up to `OPTIONS_MAX_TRADE_USD` (default $5,000) per trade —
+  `floor(budget / (ask price × 100))` contracts. Skipped entirely if even 1
+  contract would exceed the budget.
+- **Own cooldown** (`OPTIONS_COOLDOWN_MINUTES`) and confidence bar
+  (`OPTIONS_MIN_CONFIDENCE`), independent of the stock pipeline's.
+- **Take-profit tiers** (`OPTIONS_TIERS`, default `25:0.25,50:0.25,75:0.25,200:0.25`)
+  — the same ratchet mechanic as stocks, but keyed off the option's own
+  gain since entry, which moves far more than the underlying stock does.
+- **Forced close the Thursday before its own expiration**, regardless of
+  P&L — a losing contract is never held into Friday expiration/assignment,
+  it's just sold for whatever it's worth by then. This is a time-based
+  exit, not a loss-based stop: **there is no stop-loss for options either**,
+  by explicit choice — a losing contract rides all the way to that
+  Thursday with no early cut.
 
 ## Take-profit
 
@@ -122,12 +156,18 @@ automatic exit here, deliberately deferred for now.
 | `SIGNAL_MODEL` | claude-haiku-4-5 | Model used to judge each news item |
 | `TAKE_PROFIT_TIERS` | `5:0.25,10:0.25,20:0.25,50:0.25` | Take-profit tiers, `gain%:fraction_of_original` |
 | `TAKE_PROFIT_CHECK_INTERVAL_SECONDS` | 120 | How often positions are checked for take-profit |
+| `OPTIONS_ENABLED` | true | Master on/off switch for the options pipeline |
+| `OPTIONS_OTM_PCT` | 0.05 | How far out of the money to target |
+| `OPTIONS_MAX_TRADE_USD` | 5000 | Per-trade budget cap for options |
+| `OPTIONS_MIN_OPEN_INTEREST` / `OPTIONS_MAX_SPREAD_PCT` | 50 / 0.15 | Liquidity filter thresholds |
+| `OPTIONS_TIERS` | `25:0.25,50:0.25,75:0.25,200:0.25` | Options take-profit tiers, same format as stocks |
 | `APP_USERNAME` / `APP_PASSWORD` | *(unset)* | Shared login for the whole app — blank means no login prompt (fine for local use, required once hosted) |
 
 ## Hosting (Railway)
 
-The app has an always-running background loop (news poller + take-profit
-checker), so it needs a host that keeps a process alive 24/7, not a
+The app has three always-running background loops (news poller, stock
+take-profit checker, options manager), so it needs a host that keeps a
+process alive 24/7, not a
 request-only serverless function. It also writes to a local SQLite file, so
 it needs persistent storage. [Railway](https://railway.com) fits both, and
 doesn't require a credit card to start.
@@ -178,5 +218,10 @@ none of which exist today because they weren't needed for paper trading.
 - Max concurrent positions / daily trade caps (only the per-symbol cooldown
   guardrail exists).
 - Manual approve-before-execute mode — everything here is fully automatic.
-- **Stop-loss / downside protection.** The take-profit tiers only manage
-  winners; a losing position has no automatic exit today.
+- **Stop-loss / downside protection**, for stocks or options. The
+  take-profit tiers only manage winners; a losing position has no
+  loss-based automatic exit today (options do get a *time*-based forced
+  close ahead of expiration, but that's not the same thing).
+- **Strike selection beyond "closest to target %"** — no delta-targeting,
+  no fallback to a nearby strike if the first choice fails the liquidity
+  check (it just skips the trade).

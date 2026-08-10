@@ -7,7 +7,7 @@ from __future__ import annotations
 import asyncio
 import logging
 
-from app import config, db, events, news_client, signal_engine
+from app import config, db, events, news_client, options_trader, signal_engine
 from app.broker import broker
 
 log = logging.getLogger(__name__)
@@ -89,6 +89,10 @@ async def _process_item(item: dict) -> None:
     verdicts = await asyncio.to_thread(signal_engine.judge, symbols, item["headline"], item.get("summary", ""))
     for verdict in verdicts:
         await _handle_verdict(item["id"], verdict)
+        # Same verdict, separate pipeline -- options trading is fully
+        # independent of the stock outcome above (its own cooldown,
+        # confidence bar, and guardrails). See app/options_trader.py.
+        await options_trader.handle_verdict(item["id"], verdict)
 
 
 async def poll_once() -> None:

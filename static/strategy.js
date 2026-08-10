@@ -45,26 +45,14 @@ async function refreshAccount() {
   }
 }
 
-async function load() {
-  const res = await fetch('/api/strategy-config');
-  const cfg = await res.json();
-
-  document.getElementById('poll-interval').textContent = fmtSeconds(cfg.poll_interval_seconds);
-  document.getElementById('min-confidence').textContent = fmtPct(cfg.min_confidence);
-  document.getElementById('cooldown').textContent = `${cfg.cooldown_minutes} min`;
-  document.getElementById('min-trade').textContent = `$${cfg.min_trade_usd}`;
-  document.getElementById('max-trade').textContent = `$${cfg.max_trade_usd}`;
-  document.getElementById('tp-interval').textContent = fmtSeconds(cfg.take_profit_check_interval_seconds);
-
-  const tbody = document.getElementById('tiers-body');
-  if (!cfg.take_profit_enabled) {
-    tbody.innerHTML = '<tr><td colspan="3" class="meta">Take-profit is currently disabled (TAKE_PROFIT_ENABLED=false)</td></tr>';
+function renderTiers(tbody, tiers, disabledMessage) {
+  if (!tiers) {
+    tbody.innerHTML = `<tr><td colspan="3" class="meta">${disabledMessage}</td></tr>`;
     return;
   }
-
   let cumulative = 0;
-  tbody.innerHTML = cfg.take_profit_tiers.map(([threshold, fraction], i) => {
-    const isLast = i === cfg.take_profit_tiers.length - 1;
+  tbody.innerHTML = tiers.map(([threshold, fraction], i) => {
+    const isLast = i === tiers.length - 1;
     cumulative = isLast ? 1 : cumulative + fraction;
     const action = isLast
       ? `Sell whatever remains (${fmtPct(fraction)} of original, nominally)`
@@ -79,6 +67,44 @@ async function load() {
   }).join('');
 }
 
+async function load() {
+  const res = await fetch('/api/strategy-config');
+  const cfg = await res.json();
+
+  document.getElementById('poll-interval').textContent = fmtSeconds(cfg.poll_interval_seconds);
+  document.getElementById('min-confidence').textContent = fmtPct(cfg.min_confidence);
+  document.getElementById('cooldown').textContent = `${cfg.cooldown_minutes} min`;
+  document.getElementById('min-trade').textContent = `$${cfg.min_trade_usd}`;
+  document.getElementById('max-trade').textContent = `$${cfg.max_trade_usd}`;
+  document.getElementById('tp-interval').textContent = fmtSeconds(cfg.take_profit_check_interval_seconds);
+
+  renderTiers(
+    document.getElementById('tiers-body'),
+    cfg.take_profit_enabled ? cfg.take_profit_tiers : null,
+    'Take-profit is currently disabled (TAKE_PROFIT_ENABLED=false)',
+  );
+}
+
+async function loadOptions() {
+  const res = await fetch('/api/options/config');
+  const cfg = await res.json();
+
+  document.getElementById('opt-min-confidence').textContent = fmtPct(cfg.min_confidence);
+  document.getElementById('opt-cooldown').textContent = `${cfg.cooldown_minutes} min`;
+  document.getElementById('opt-otm').textContent = fmtPct(cfg.otm_pct);
+  document.getElementById('opt-oi').textContent = cfg.min_open_interest;
+  document.getElementById('opt-spread').textContent = fmtPct(cfg.max_spread_pct);
+  document.getElementById('opt-budget').textContent = `$${cfg.max_trade_usd}`;
+  document.getElementById('opt-interval').textContent = fmtSeconds(cfg.check_interval_seconds);
+
+  renderTiers(
+    document.getElementById('opt-tiers-body'),
+    cfg.enabled ? cfg.tiers : null,
+    'Options trading is currently disabled (OPTIONS_ENABLED=false)',
+  );
+}
+
 load();
+loadOptions();
 refreshAccount();
 setInterval(refreshAccount, 30000);

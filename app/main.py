@@ -8,9 +8,9 @@ from fastapi import FastAPI
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from app import db, poller, profit_taker
+from app import db, options_manager, poller, profit_taker
 from app.auth import BasicAuthMiddleware
-from app.routes import meta, news, trading, watchlist
+from app.routes import meta, news, options, trading, watchlist
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 
@@ -36,9 +36,11 @@ async def lifespan(app: FastAPI):
     db.init_db()
     news_task = asyncio.create_task(poller.run_forever())
     profit_task = asyncio.create_task(profit_taker.run_forever())
+    options_task = asyncio.create_task(options_manager.run_forever())
     yield
     news_task.cancel()
     profit_task.cancel()
+    options_task.cancel()
 
 
 app = FastAPI(title="FinSignal", lifespan=lifespan)
@@ -48,6 +50,7 @@ app.include_router(news.router, prefix="/api")
 app.include_router(trading.router, prefix="/api")
 app.include_router(watchlist.router, prefix="/api")
 app.include_router(meta.router, prefix="/api")
+app.include_router(options.router, prefix="/api")
 
 app.mount("/static", NoCacheStaticFiles(directory="static"), name="static")
 
@@ -65,3 +68,8 @@ async def trades_page():
 @app.get("/strategy")
 async def strategy_page():
     return FileResponse("static/strategy.html", headers=NO_CACHE_HEADERS)
+
+
+@app.get("/options")
+async def options_page():
+    return FileResponse("static/options.html", headers=NO_CACHE_HEADERS)

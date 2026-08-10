@@ -5,7 +5,7 @@ import logging
 from typing import Any
 
 from alpaca.trading.client import TradingClient
-from alpaca.trading.enums import AssetStatus, OrderSide, QueryOrderStatus, TimeInForce
+from alpaca.trading.enums import AssetClass, AssetStatus, OrderSide, PositionIntent, QueryOrderStatus, TimeInForce
 from alpaca.trading.requests import GetOrdersRequest, GetPortfolioHistoryRequest, MarketOrderRequest
 
 from app import config
@@ -88,7 +88,9 @@ class AlpacaBroker(BrokerInterface):
         }
 
     def get_positions(self) -> list[dict[str, Any]]:
-        positions = self._client.get_all_positions()
+        # Equities only -- options positions have their own panel/methods
+        # below so the two don't get mixed together in the stock UI.
+        positions = [p for p in self._client.get_all_positions() if p.asset_class == AssetClass.US_EQUITY]
         return [
             {
                 "symbol": p.symbol,
@@ -160,4 +162,53 @@ class AlpacaBroker(BrokerInterface):
                 "submitted_at": str(o.submitted_at),
             }
             for o in orders
+        ]
+
+    def place_option_order(self, contract_symbol: str, qty: int) -> dict[str, Any]:
+        req = MarketOrderRequest(
+            symbol=contract_symbol,
+            qty=qty,
+            side=OrderSide.BUY,
+            time_in_force=TimeInForce.DAY,
+            position_intent=PositionIntent.BUY_TO_OPEN,
+        )
+        order = self._client.submit_order(order_data=req)
+        return {
+            "order_id": str(order.id),
+            "symbol": order.symbol,
+            "side": "buy",
+            "qty": qty,
+            "status": str(order.status),
+        }
+
+    def sell_option_qty(self, contract_symbol: str, qty: int) -> dict[str, Any]:
+        req = MarketOrderRequest(
+            symbol=contract_symbol,
+            qty=qty,
+            side=OrderSide.SELL,
+            time_in_force=TimeInForce.DAY,
+            position_intent=PositionIntent.SELL_TO_CLOSE,
+        )
+        order = self._client.submit_order(order_data=req)
+        return {
+            "order_id": str(order.id),
+            "symbol": order.symbol,
+            "side": "sell",
+            "qty": qty,
+            "status": str(order.status),
+        }
+
+    def get_option_positions(self) -> list[dict[str, Any]]:
+        positions = [p for p in self._client.get_all_positions() if p.asset_class == AssetClass.US_OPTION]
+        return [
+            {
+                "symbol": p.symbol,
+                "qty": float(p.qty),
+                "avg_entry_price": float(p.avg_entry_price),
+                "current_price": float(p.current_price) if p.current_price is not None else None,
+                "market_value": float(p.market_value) if p.market_value is not None else None,
+                "unrealized_pl": float(p.unrealized_pl) if p.unrealized_pl is not None else None,
+                "unrealized_plpc": float(p.unrealized_plpc) if p.unrealized_plpc is not None else None,
+            }
+            for p in positions
         ]

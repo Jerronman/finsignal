@@ -61,6 +61,25 @@ def _parse_tiers(raw: str) -> list[tuple[float, float]]:
 
 TAKE_PROFIT_TIERS = _parse_tiers(os.getenv("TAKE_PROFIT_TIERS", "5:0.25,10:0.25,20:0.25,50:0.25"))
 
+# --- Options trading (same news signal, separate tab/pipeline from stocks) ---
+# Always Buy-to-Open, weekly, ~OPTIONS_OTM_PCT out of the money: a `buy`
+# verdict buys a call, `sell` buys a put (never writes/sells options short).
+# Expiration is the nearest Friday that's at least 2 days out -- if the
+# signal fires on Thursday or Friday, it rolls to the following week's
+# Friday instead. Positions are force-closed the Thursday before their own
+# expiration, regardless of P&L, to avoid Friday expiration/assignment.
+OPTIONS_ENABLED = os.getenv("OPTIONS_ENABLED", "true").lower() == "true"
+OPTIONS_MIN_CONFIDENCE = float(os.getenv("OPTIONS_MIN_CONFIDENCE", str(MIN_CONFIDENCE)))
+OPTIONS_OTM_PCT = float(os.getenv("OPTIONS_OTM_PCT", "0.05"))
+OPTIONS_MAX_TRADE_USD = float(os.getenv("OPTIONS_MAX_TRADE_USD", "5000"))
+OPTIONS_MIN_OPEN_INTEREST = int(os.getenv("OPTIONS_MIN_OPEN_INTEREST", "50"))
+OPTIONS_MAX_SPREAD_PCT = float(os.getenv("OPTIONS_MAX_SPREAD_PCT", "0.15"))
+OPTIONS_COOLDOWN_MINUTES = int(os.getenv("OPTIONS_COOLDOWN_MINUTES", str(COOLDOWN_MINUTES)))
+OPTIONS_CHECK_INTERVAL_SECONDS = int(os.getenv("OPTIONS_CHECK_INTERVAL_SECONDS", "120"))
+# No stop-loss by design -- a losing contract rides to its forced Thursday
+# close-out rather than being cut early.
+OPTIONS_TIERS = _parse_tiers(os.getenv("OPTIONS_TIERS", "25:0.25,50:0.25,75:0.25,200:0.25"))
+
 DB_PATH = os.getenv("DB_PATH", str(BASE_DIR / "finsignal.db"))
 
 # --- Access control ---
