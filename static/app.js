@@ -108,14 +108,20 @@ async function refreshPositions() {
       positionsEl.innerHTML = '<div class="meta">No open positions</div>';
       return;
     }
-    positionsEl.innerHTML = positions.map(p => `
-      <div class="positions-row">
-        <span>${escapeHtml(p.symbol)} · ${p.qty} sh</span>
-        <span style="color: ${(p.unrealized_pl ?? 0) >= 0 ? 'var(--green)' : 'var(--red)'}">
-          ${p.unrealized_pl != null ? '$' + p.unrealized_pl.toFixed(2) : ''}
-        </span>
-      </div>
-    `).join('');
+    positionsEl.innerHTML = positions.map(p => {
+      const up = (p.unrealized_pl ?? 0) >= 0;
+      const pct = p.unrealized_plpc != null ? p.unrealized_plpc * 100 : null;
+      const sign = up ? '+' : '';
+      return `
+        <div class="positions-row">
+          <span>${escapeHtml(p.symbol)} · ${p.qty} sh</span>
+          <span style="color: ${up ? 'var(--green)' : 'var(--red)'}">
+            ${p.unrealized_pl != null ? sign + '$' + p.unrealized_pl.toFixed(2) : ''}
+            ${pct != null ? `(${sign}${pct.toFixed(2)}%)` : ''}
+          </span>
+        </div>
+      `;
+    }).join('');
   } catch (e) {
     positionsEl.innerHTML = '<div class="meta">Positions unavailable — check Alpaca keys in .env</div>';
   }
