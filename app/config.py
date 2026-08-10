@@ -34,4 +34,23 @@ MIN_TRADE_USD = float(os.getenv("MIN_TRADE_USD", "200"))
 MAX_TRADE_USD = float(os.getenv("MAX_TRADE_USD", "1000"))
 COOLDOWN_MINUTES = int(os.getenv("COOLDOWN_MINUTES", "60"))
 
+# --- Take-profit (independent of the news signal) ---
+# Checks every open position's *today's* gain (Alpaca's unrealized_intraday_plpc)
+# and trims TAKE_PROFIT_SELL_FRACTION of the position the first time it's up
+# TAKE_PROFIT_PCT or more in a day. At most once per symbol per calendar day.
+# Only calls Alpaca (no news-API quota impact), so it can run much more often
+# than news polling.
+TAKE_PROFIT_ENABLED = os.getenv("TAKE_PROFIT_ENABLED", "true").lower() == "true"
+TAKE_PROFIT_PCT = float(os.getenv("TAKE_PROFIT_PCT", "0.05"))
+TAKE_PROFIT_SELL_FRACTION = float(os.getenv("TAKE_PROFIT_SELL_FRACTION", "0.25"))
+TAKE_PROFIT_CHECK_INTERVAL_SECONDS = int(os.getenv("TAKE_PROFIT_CHECK_INTERVAL_SECONDS", "120"))
+
 DB_PATH = os.getenv("DB_PATH", str(BASE_DIR / "finsignal.db"))
+
+# --- Access control ---
+# HTTP Basic Auth in front of the whole app -- required once this is hosted
+# anywhere reachable off your own machine. Auth is skipped entirely if
+# APP_PASSWORD is unset, so local development stays prompt-free.
+APP_USERNAME = os.getenv("APP_USERNAME", "")
+APP_PASSWORD = os.getenv("APP_PASSWORD", "")
+AUTH_ENABLED = bool(APP_PASSWORD)

@@ -46,6 +46,17 @@ header h1 { margin: 0; font-size: 20px; }
 .account-summary { font-size: 14px; color: var(--muted); display: flex; gap: 16px; flex-wrap: wrap; }
 .account-summary b { color: var(--text); }
 
+.tabs { display: flex; gap: 6px; }
+.tabs a {
+  color: var(--muted);
+  text-decoration: none;
+  font-size: 13px;
+  padding: 6px 12px;
+  border-radius: 6px;
+}
+.tabs a:hover { color: var(--text); background: var(--panel); }
+.tabs a.active { color: var(--text); background: var(--panel); border: 1px solid var(--border); }
+
 main {
   display: grid;
   grid-template-columns: 1fr 320px;
@@ -94,6 +105,12 @@ h2 { margin: 0 0 12px; font-size: 13px; text-transform: uppercase; letter-spacin
   background: rgba(138,144,160,.12); color: var(--muted);
 }
 .pill.error { background: rgba(224,90,90,.25); color: var(--red); }
+.pill.profit_take { background: rgba(216,161,58,.15); color: var(--amber); border-color: var(--amber); }
+
+.pill.fill-filled { background: rgba(51,193,122,.15); color: var(--green); border-color: var(--green); }
+.pill.fill-partially_filled { background: rgba(216,161,58,.15); color: var(--amber); border-color: var(--amber); }
+.pill.fill-pending { background: rgba(138,144,160,.12); color: var(--muted); }
+.pill.fill-canceled { background: rgba(224,90,90,.15); color: var(--red); border-color: var(--red); }
 
 .positions-row {
   display: flex;
@@ -129,3 +146,33 @@ h2 { margin: 0 0 12px; font-size: 13px; text-transform: uppercase; letter-spacin
 @media (max-width: 860px) {
   main { grid-template-columns: 1fr; }
 }
+
+/* --- Trade Log page --- */
+.trades-main {
+  display: block;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 20px 24px;
+}
+.trades-panel { margin-bottom: 0; }
+.trades-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+.trades-header h2 { margin: 0; }
+
+.table-scroll { overflow-x: auto; }
+
+#trades-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+#trades-table th, #trades-table td {
+  text-align: left;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+#trades-table td.why { white-space: normal; color: var(--muted); min-width: 280px; }
+#trades-table td.why em { color: var(--text); font-style: normal; }
+#trades-table th { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .03em; }
+#trades-table tbody tr:hover { background: rgba(255,255,255,.02); }

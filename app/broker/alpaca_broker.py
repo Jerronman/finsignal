@@ -5,7 +5,7 @@ import logging
 from typing import Any
 
 from alpaca.trading.client import TradingClient
-from alpaca.trading.enums import OrderSide, TimeInForce
+from alpaca.trading.enums import OrderSide, QueryOrderStatus, TimeInForce
 from alpaca.trading.requests import GetOrdersRequest, MarketOrderRequest
 
 from app import config
@@ -50,6 +50,22 @@ class AlpacaBroker(BrokerInterface):
             "status": str(status),
         }
 
+    def sell_qty(self, symbol: str, qty: float) -> dict[str, Any]:
+        req = MarketOrderRequest(
+            symbol=symbol,
+            qty=qty,
+            side=OrderSide.SELL,
+            time_in_force=TimeInForce.DAY,
+        )
+        order = self._client.submit_order(order_data=req)
+        return {
+            "order_id": str(order.id),
+            "symbol": order.symbol,
+            "side": "sell",
+            "qty": qty,
+            "status": str(order.status),
+        }
+
     def get_positions(self) -> list[dict[str, Any]]:
         positions = self._client.get_all_positions()
         return [
@@ -60,6 +76,9 @@ class AlpacaBroker(BrokerInterface):
                 "current_price": float(p.current_price) if p.current_price is not None else None,
                 "market_value": float(p.market_value) if p.market_value is not None else None,
                 "unrealized_pl": float(p.unrealized_pl) if p.unrealized_pl is not None else None,
+                "unrealized_intraday_plpc": (
+                    float(p.unrealized_intraday_plpc) if p.unrealized_intraday_plpc is not None else None
+                ),
             }
             for p in positions
         ]
@@ -81,7 +100,10 @@ class AlpacaBroker(BrokerInterface):
         }
 
     def get_orders(self, limit: int = 50) -> list[dict[str, Any]]:
-        req = GetOrdersRequest(limit=limit)
+        # Alpaca's default is open orders only -- ALL is needed so filled/
+        # canceled orders still show up (the Trade Log's fill-status column
+        # relies on this).
+        req = GetOrdersRequest(limit=limit, status=QueryOrderStatus.ALL)
         orders = self._client.get_orders(req)
         return [
             {

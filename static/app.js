@@ -167,9 +167,16 @@ function connectStream() {
       upsertPill(data.article_id, data.symbol, data.action, label);
     } else if (data.type === 'trade') {
       upsertPill(data.article_id, data.symbol, data.outcome, data.outcome.replace(/_/g, ' '));
-      const label = data.outcome === 'bought'
-        ? `Bought $${(data.amount_usd || 0).toFixed(0)} of ${data.symbol}`
-        : `Sold position in ${data.symbol}`;
+      let label;
+      if (data.outcome === 'bought') {
+        label = `Bought $${(data.amount_usd || 0).toFixed(0)} of ${data.symbol}`;
+      } else if (data.outcome === 'profit_take') {
+        label = `Took profit: sold ${data.qty} shares of ${data.symbol}`;
+      } else if (data.outcome === 'sold') {
+        label = `Sold position in ${data.symbol}`;
+      } else {
+        label = `${data.symbol}: ${data.outcome.replace(/_/g, ' ')}`;
+      }
       notify('Paper trade executed', label);
       speak(label);
       refreshPositions();

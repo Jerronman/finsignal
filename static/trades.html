@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FinSignal — Trade Log</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header>
+  <h1>FinSignal <span class="badge">PAPER TRADING</span></h1>
+  <nav class="tabs">
+    <a href="/">Activity</a>
+    <a href="/trades" class="active">Trade Log</a>
+  </nav>
+  <div id="account-summary" class="account-summary">Loading account…</div>
+</header>
+
+<main class="trades-main">
+  <section class="trades-panel">
+    <div class="trades-header">
+      <h2>Trade Log</h2>
+      <label class="toggle">
+        <input type="checkbox" id="show-skipped">
+        Show skipped decisions too
+      </label>
+    </div>
+    <div class="table-scroll">
+      <table id="trades-table">
+        <thead>
+          <tr>
+            <th>Time</th>
+            <th>Symbol</th>
+            <th>Outcome</th>
+            <th>Amount</th>
+            <th>Filled?</th>
+            <th>Why</th>
+          </tr>
+        </thead>
+        <tbody id="trades-body"></tbody>
+      </table>
+    </div>
+  </section>
+</main>
+
+<script src="/static/trades.js"></script>
+</body>
+</html>

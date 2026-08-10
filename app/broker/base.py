@@ -19,6 +19,11 @@ class BrokerInterface(ABC):
         """Fully liquidate the current position in symbol."""
 
     @abstractmethod
+    def sell_qty(self, symbol: str, qty: float) -> dict[str, Any]:
+        """Sell a specific number of shares (partial or full) -- used for
+        profit-take trims, as opposed to close_position's full liquidation."""
+
+    @abstractmethod
     def get_positions(self) -> list[dict[str, Any]]:
         ...
 

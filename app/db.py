@@ -5,7 +5,8 @@ Tables:
   verdicts           one row per (article, symbol) LLM judgment
   trades             one row per (article, symbol) outcome -- traded or skipped, with why
   watchlist          symbols you're extra-polling for news
-  symbol_cooldowns   last time we traded each symbol, for the cooldown guardrail
+  symbol_cooldowns   last time we news-traded each symbol, for the cooldown guardrail
+  profit_takes       last calendar date we took profit on each symbol
 """
 from __future__ import annotations
 
@@ -56,6 +57,11 @@ CREATE TABLE IF NOT EXISTS watchlist (
 CREATE TABLE IF NOT EXISTS symbol_cooldowns (
     symbol TEXT PRIMARY KEY,
     last_trade_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS profit_takes (
+    symbol TEXT PRIMARY KEY,
+    taken_date TEXT NOT NULL
 );
 """
 
@@ -129,11 +135,40 @@ def insert_trade(
 
 
 def get_trades(limit: int = 100) -> list[dict[str, Any]]:
+    """Full trade log (executed and skipped), newest first, with the source
+    article's headline attached when there is one (profit-take trims have
+    no article, so `headline` is null for those)."""
     with get_conn() as conn:
         rows = conn.execute(
-            "SELECT * FROM trades ORDER BY created_at DESC LIMIT ?", (limit,)
+            """
+            SELECT t.*, n.headline
+            FROM trades t
+            LEFT JOIN news_items n ON n.id = t.article_id
+            ORDER BY t.created_at DESC
+            LIMIT ?
+            """,
+            (limit,),
         ).fetchall()
         return [dict(r) for r in rows]
+
+
+def took_profit_today(symbol: str) -> bool:
+    today = datetime.now(timezone.utc).date().isoformat()
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT taken_date FROM profit_takes WHERE symbol = ?", (symbol,)
+        ).fetchone()
+    return bool(row) and row["taken_date"] == today
+
+
+def mark_profit_taken_today(symbol: str) -> None:
+    today = datetime.now(timezone.utc).date().isoformat()
+    with get_conn() as conn:
+        conn.execute(
+            "INSERT INTO profit_takes (symbol, taken_date) VALUES (?, ?) "
+            "ON CONFLICT(symbol) DO UPDATE SET taken_date = excluded.taken_date",
+            (symbol, today),
+        )
 
 
 def is_in_cooldown(symbol: str, cooldown_minutes: int) -> bool:

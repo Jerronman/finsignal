@@ -74,8 +74,20 @@ closer-to-real-time polling.
 - **Watchlist** — add/remove symbols; currently informational only (see
   "How it decides" — Marketaux's own tagging drives what's traded, not this
   list). Reserved for a future filter/highlight feature.
+- **Trade Log** (`/trades`) — every trade decision (executed or skipped),
+  with the source headline, and whether the Alpaca order has actually
+  filled yet.
 - New items and executed trades trigger a browser notification and are read
   aloud (Web Speech API) — toggle off with the checkbox if it gets noisy.
+
+## Take-profit
+
+Independent of the news signal, and only calls Alpaca (no news-API quota
+impact): every `TAKE_PROFIT_CHECK_INTERVAL_SECONDS` (default 2 min), each
+open position's gain *today* is checked. The first time it's up
+`TAKE_PROFIT_PCT` (default 5%), `TAKE_PROFIT_SELL_FRACTION` (default 25%) of
+the position is sold — at most once per symbol per calendar day. There's no
+symmetric stop-loss; a position down 5% today doesn't trigger anything.
 
 ## Configuration (`.env`)
 
@@ -86,6 +98,43 @@ closer-to-real-time polling.
 | `MIN_TRADE_USD` / `MAX_TRADE_USD` | 200 / 1000 | Position size range, scaled by confidence |
 | `COOLDOWN_MINUTES` | 60 | Minimum gap between trades on the same symbol |
 | `SIGNAL_MODEL` | claude-haiku-4-5 | Model used to judge each news item |
+| `TAKE_PROFIT_PCT` / `TAKE_PROFIT_SELL_FRACTION` | 0.05 / 0.25 | Take-profit threshold and trim size |
+| `TAKE_PROFIT_CHECK_INTERVAL_SECONDS` | 120 | How often positions are checked for take-profit |
+| `APP_USERNAME` / `APP_PASSWORD` | *(unset)* | Shared login for the whole app — blank means no login prompt (fine for local use, required once hosted) |
+
+## Hosting (Railway)
+
+The app has an always-running background loop (news poller + take-profit
+checker), so it needs a host that keeps a process alive 24/7, not a
+request-only serverless function. It also writes to a local SQLite file, so
+it needs persistent storage. [Railway](https://railway.com) fits both, and
+doesn't require a credit card to start.
+
+1. Set `APP_USERNAME` and `APP_PASSWORD` in your **local** `.env` first and
+   confirm the login prompt works (`uvicorn app.main:app --reload`, reload
+   `localhost:8000`) — cheaper to catch typos locally than after deploying.
+2. Push this repo to GitHub if you haven't (it already builds from the
+   `Dockerfile` in the repo root — Railway auto-detects it).
+3. On [railway.com](https://railway.com): New Project → Deploy from GitHub
+   repo → pick this repo.
+4. **Add a volume**: in the service's Settings → Volumes, mount one at
+   `/data`. This is where the SQLite file will live so it survives
+   redeploys/restarts.
+5. **Set environment variables** (Variables tab) — all the same names as
+   your `.env`, but note `DB_PATH` needs to point at the volume:
+   ```
+   DB_PATH=/data/finsignal.db
+   ```
+   plus `MARKETAUX_API_TOKEN`, `ALPACA_API_KEY`, `ALPACA_SECRET_KEY`,
+   `ANTHROPIC_API_KEY`, `APP_USERNAME`, `APP_PASSWORD`, and any of the
+   trading knobs above you want to override. Enter these directly in
+   Railway's dashboard — never commit real values to `.env.example` or the
+   repo.
+6. Railway assigns a public URL automatically (Settings → Networking →
+   Generate Domain). That URL is what you and your dad both use — the
+   `Dockerfile` binds to Railway's `$PORT` automatically.
+7. Check the deploy logs for the poller/take-profit startup lines to confirm
+   the background loops actually started, not just the web server.
 
 ## Going live later (real money via Schwab)
 
