@@ -6,7 +6,7 @@ from typing import Any
 
 from alpaca.trading.client import TradingClient
 from alpaca.trading.enums import AssetStatus, OrderSide, QueryOrderStatus, TimeInForce
-from alpaca.trading.requests import GetOrdersRequest, MarketOrderRequest
+from alpaca.trading.requests import GetOrdersRequest, GetPortfolioHistoryRequest, MarketOrderRequest
 
 from app import config
 from app.broker.base import BrokerInterface
@@ -104,6 +104,21 @@ class AlpacaBroker(BrokerInterface):
         equity = float(acct.equity)
         last_equity = float(acct.last_equity) if acct.last_equity is not None else equity
         pl_today = equity - last_equity
+
+        # Realized P&L (all-time) = total account gain since inception, minus
+        # whatever's still unrealized on currently open positions. `base_value`
+        # is Alpaca's own record of starting equity -- no cost-basis
+        # reconstruction needed on our end.
+        realized_pl = None
+        try:
+            history = self._client.get_portfolio_history(GetPortfolioHistoryRequest(period="1A", timeframe="1D"))
+            base_value = float(history.base_value) if history.base_value is not None else None
+            if base_value is not None:
+                total_unrealized = sum(float(p.unrealized_pl or 0) for p in self._client.get_all_positions())
+                realized_pl = (equity - base_value) - total_unrealized
+        except Exception:
+            log.exception("Failed to compute realized P&L")
+
         return {
             "cash": float(acct.cash),
             "portfolio_value": float(acct.portfolio_value),
@@ -111,6 +126,7 @@ class AlpacaBroker(BrokerInterface):
             "equity": equity,
             "pl_today": pl_today,
             "pl_today_pct": (pl_today / last_equity * 100) if last_equity else 0.0,
+            "realized_pl": realized_pl,
         }
 
     def get_orders(self, limit: int = 50) -> list[dict[str, Any]]:
