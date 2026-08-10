@@ -34,8 +34,18 @@ function fillStatusHtml(t) {
   return `<span class="pill fill-${escapeHtml(status)}">${escapeHtml(status.replace(/_/g, ' '))}</span>`;
 }
 
+function headlineHtml(headline, url) {
+  const text = escapeHtml(headline);
+  if (url && /^https?:\/\//i.test(url)) {
+    return `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${text}</a>`;
+  }
+  return text;
+}
+
 function rowHtml(t) {
-  const why = t.headline ? `${escapeHtml(t.reasoning || '')} — <em>${escapeHtml(t.headline)}</em>` : escapeHtml(t.reasoning || '');
+  const why = t.headline
+    ? `${escapeHtml(t.reasoning || '')} — <em>${headlineHtml(t.headline, t.headline_url)}</em>`
+    : escapeHtml(t.reasoning || '');
   return `
     <tr>
       <td>${escapeHtml(formatTime(t.created_at))}</td>

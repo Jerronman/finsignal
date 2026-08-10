@@ -26,6 +26,14 @@ function notify(title, body) {
   new Notification(title, { body });
 }
 
+function headlineHtml(headline, url) {
+  const text = escapeHtml(headline);
+  if (url && /^https?:\/\//i.test(url)) {
+    return `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${text}</a>`;
+  }
+  return text;
+}
+
 function renderCard(item) {
   if (cardsByArticle.has(item.id)) return cardsByArticle.get(item.id);
   const card = document.createElement('div');
@@ -33,7 +41,7 @@ function renderCard(item) {
   card.dataset.articleId = item.id;
   const symbols = (item.symbols && item.symbols.length ? item.symbols.join(', ') : '—');
   card.innerHTML = `
-    <div class="headline">${escapeHtml(item.headline)}</div>
+    <div class="headline">${headlineHtml(item.headline, item.url)}</div>
     <div class="meta">${escapeHtml(symbols)} · ${escapeHtml(item.published_at || '')}</div>
     <div class="verdicts"></div>
   `;
@@ -67,6 +75,7 @@ async function loadInitialFeed() {
       byArticle.set(row.article_id, {
         id: row.article_id,
         headline: row.headline,
+        url: row.url,
         published_at: row.published_at,
         symbols: (row.symbols || '').split(',').filter(Boolean),
         verdicts: [],

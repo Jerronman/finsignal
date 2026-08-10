@@ -136,12 +136,12 @@ def insert_trade(
 
 def get_trades(limit: int = 100) -> list[dict[str, Any]]:
     """Full trade log (executed and skipped), newest first, with the source
-    article's headline attached when there is one (profit-take trims have
-    no article, so `headline` is null for those)."""
+    article's headline + URL attached when there is one (profit-take trims
+    have no article, so both are null for those)."""
     with get_conn() as conn:
         rows = conn.execute(
             """
-            SELECT t.*, n.headline
+            SELECT t.*, n.headline, n.url as headline_url
             FROM trades t
             LEFT JOIN news_items n ON n.id = t.article_id
             ORDER BY t.created_at DESC
