@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FinSignal — Automated News Trading (Paper)</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header>
+  <h1>FinSignal <span class="badge">PAPER TRADING</span></h1>
+  <div id="account-summary" class="account-summary">Loading account…</div>
+</header>
+
+<main>
+  <section class="feed-panel">
+    <h2>Activity Feed</h2>
+    <div id="feed"></div>
+  </section>
+
+  <aside class="side-panel">
+    <section>
+      <h2>Positions</h2>
+      <div id="positions">Loading…</div>
+    </section>
+    <section>
+      <h2>Watchlist</h2>
+      <p class="hint">Informational only right now — trades fire on any symbol Marketaux tags in the news, not just these.</p>
+      <form id="watchlist-form">
+        <input id="watchlist-input" placeholder="e.g. AAPL" autocomplete="off">
+        <button type="submit">Add</button>
+      </form>
+      <ul id="watchlist-list"></ul>
+    </section>
+    <section>
+      <label class="toggle">
+        <input type="checkbox" id="speak-toggle" checked>
+        Speak new news &amp; trades aloud
+      </label>
+    </section>
+  </aside>
+</main>
+
+<script src="/static/app.js"></script>
+</body>
+</html>
