@@ -112,9 +112,10 @@ async function refreshPositions() {
       const up = (p.unrealized_pl ?? 0) >= 0;
       const pct = p.unrealized_plpc != null ? p.unrealized_plpc * 100 : null;
       const sign = up ? '+' : '';
+      const qty = parseFloat(p.qty.toFixed(3));
       return `
         <div class="positions-row">
-          <span>${escapeHtml(p.symbol)} · ${p.qty} sh</span>
+          <span title="${escapeHtml(p.name || p.symbol)}">${escapeHtml(p.symbol)} · ${qty} sh</span>
           <span style="color: ${up ? 'var(--green)' : 'var(--red)'}">
             ${p.unrealized_pl != null ? sign + '$' + p.unrealized_pl.toFixed(2) : ''}
             ${pct != null ? `(${sign}${pct.toFixed(2)}%)` : ''}

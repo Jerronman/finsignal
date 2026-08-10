@@ -21,6 +21,18 @@ class AlpacaBroker(BrokerInterface):
             config.ALPACA_SECRET_KEY,
             paper=config.ALPACA_PAPER,
         )
+        self._asset_name_cache: dict[str, str] = {}
+
+    def _get_asset_name(self, symbol: str) -> str:
+        """Company name for a symbol, e.g. 'Apple Inc.' for AAPL -- cached
+        since it never changes, so the Positions panel isn't paying for an
+        extra Alpaca call per symbol on every 30s refresh."""
+        if symbol not in self._asset_name_cache:
+            try:
+                self._asset_name_cache[symbol] = self._client.get_asset(symbol).name or symbol
+            except Exception:
+                self._asset_name_cache[symbol] = symbol
+        return self._asset_name_cache[symbol]
 
     def is_tradable(self, symbol: str) -> bool:
         try:
@@ -80,6 +92,7 @@ class AlpacaBroker(BrokerInterface):
         return [
             {
                 "symbol": p.symbol,
+                "name": self._get_asset_name(p.symbol),
                 "qty": float(p.qty),
                 "avg_entry_price": float(p.avg_entry_price),
                 "current_price": float(p.current_price) if p.current_price is not None else None,
