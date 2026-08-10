@@ -196,3 +196,22 @@ h2 { margin: 0 0 12px; font-size: 13px; text-transform: uppercase; letter-spacin
 #trades-table td.why em { color: var(--text); font-style: normal; }
 #trades-table th { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .03em; }
 #trades-table tbody tr:hover { background: rgba(255,255,255,.02); }
+
+/* --- Strategy page --- */
+.trades-main p, .trades-main ul { line-height: 1.6; color: var(--text); }
+.trades-main ul { padding-left: 20px; }
+.trades-main li { margin-bottom: 6px; }
+.trades-main code {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 1px 6px;
+  font-size: 13px;
+}
+#tiers-table { width: 100%; border-collapse: collapse; font-size: 14px; margin-top: 10px; }
+#tiers-table th, #tiers-table td {
+  text-align: left;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--border);
+}
+#tiers-table th { color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .03em; }

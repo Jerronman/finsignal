@@ -85,6 +85,7 @@ class AlpacaBroker(BrokerInterface):
                 "current_price": float(p.current_price) if p.current_price is not None else None,
                 "market_value": float(p.market_value) if p.market_value is not None else None,
                 "unrealized_pl": float(p.unrealized_pl) if p.unrealized_pl is not None else None,
+                "unrealized_plpc": float(p.unrealized_plpc) if p.unrealized_plpc is not None else None,
                 "unrealized_intraday_plpc": (
                     float(p.unrealized_intraday_plpc) if p.unrealized_intraday_plpc is not None else None
                 ),

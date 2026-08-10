@@ -35,15 +35,31 @@ MAX_TRADE_USD = float(os.getenv("MAX_TRADE_USD", "1000"))
 COOLDOWN_MINUTES = int(os.getenv("COOLDOWN_MINUTES", "60"))
 
 # --- Take-profit (independent of the news signal) ---
-# Checks every open position's *today's* gain (Alpaca's unrealized_intraday_plpc)
-# and trims TAKE_PROFIT_SELL_FRACTION of the position the first time it's up
-# TAKE_PROFIT_PCT or more in a day. At most once per symbol per calendar day.
-# Only calls Alpaca (no news-API quota impact), so it can run much more often
-# than news polling.
+# Tiered profit-taking based on gain since YOUR entry price (Alpaca's
+# unrealized_plpc -- not "today's" move). Each tier sells a fixed fraction
+# of the ORIGINAL share count once crossed, so the position fully
+# liquidates in stages by the highest tier. Format: "threshold:fraction,..."
+# Default: up 5% -> sell 25% of original; up 10% -> another 25% (50% sold
+# total); up 20% -> another 25% (75% sold); up 50% -> sell whatever's left
+# (100% sold). Only calls Alpaca (no news-API quota impact), so it can run
+# much more often than news polling. No downside/stop-loss handling yet --
+# deliberately deferred.
 TAKE_PROFIT_ENABLED = os.getenv("TAKE_PROFIT_ENABLED", "true").lower() == "true"
-TAKE_PROFIT_PCT = float(os.getenv("TAKE_PROFIT_PCT", "0.05"))
-TAKE_PROFIT_SELL_FRACTION = float(os.getenv("TAKE_PROFIT_SELL_FRACTION", "0.25"))
 TAKE_PROFIT_CHECK_INTERVAL_SECONDS = int(os.getenv("TAKE_PROFIT_CHECK_INTERVAL_SECONDS", "120"))
+
+
+def _parse_tiers(raw: str) -> list[tuple[float, float]]:
+    tiers = []
+    for part in raw.split(","):
+        part = part.strip()
+        if not part:
+            continue
+        threshold_str, fraction_str = part.split(":")
+        tiers.append((float(threshold_str), float(fraction_str)))
+    return sorted(tiers, key=lambda t: t[0])
+
+
+TAKE_PROFIT_TIERS = _parse_tiers(os.getenv("TAKE_PROFIT_TIERS", "5:0.25,10:0.25,20:0.25,50:0.25"))
 
 DB_PATH = os.getenv("DB_PATH", str(BASE_DIR / "finsignal.db"))
 

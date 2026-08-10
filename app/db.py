@@ -6,7 +6,7 @@ Tables:
   trades             one row per (article, symbol) outcome -- traded or skipped, with why
   watchlist          symbols you're extra-polling for news
   symbol_cooldowns   last time we news-traded each symbol, for the cooldown guardrail
-  profit_takes       last calendar date we took profit on each symbol
+  profit_take_plans  per-symbol tiered take-profit plan (original share count + which tiers have fired)
 """
 from __future__ import annotations
 
@@ -59,11 +59,17 @@ CREATE TABLE IF NOT EXISTS symbol_cooldowns (
     last_trade_at TEXT NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS profit_takes (
+CREATE TABLE IF NOT EXISTS profit_take_plans (
     symbol TEXT PRIMARY KEY,
-    taken_date TEXT NOT NULL
+    original_qty REAL NOT NULL,
+    triggered_tiers TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL
 );
 """
+
+# One-time cleanup: retire the old date-based table from the previous
+# (non-tiered) take-profit design.
+MIGRATIONS = "DROP TABLE IF EXISTS profit_takes;"
 
 
 def now_iso() -> str:
@@ -83,6 +89,7 @@ def get_conn() -> Iterator[sqlite3.Connection]:
 
 def init_db() -> None:
     with get_conn() as conn:
+        conn.executescript(MIGRATIONS)
         conn.executescript(SCHEMA)
 
 
@@ -152,23 +159,50 @@ def get_trades(limit: int = 100) -> list[dict[str, Any]]:
         return [dict(r) for r in rows]
 
 
-def took_profit_today(symbol: str) -> bool:
-    today = datetime.now(timezone.utc).date().isoformat()
+def get_profit_take_plan(symbol: str) -> dict[str, Any] | None:
     with get_conn() as conn:
         row = conn.execute(
-            "SELECT taken_date FROM profit_takes WHERE symbol = ?", (symbol,)
+            "SELECT symbol, original_qty, triggered_tiers FROM profit_take_plans WHERE symbol = ?",
+            (symbol,),
         ).fetchone()
-    return bool(row) and row["taken_date"] == today
+    if not row:
+        return None
+    triggered = {float(t) for t in row["triggered_tiers"].split(",") if t}
+    return {"symbol": row["symbol"], "original_qty": row["original_qty"], "triggered_tiers": triggered}
 
 
-def mark_profit_taken_today(symbol: str) -> None:
-    today = datetime.now(timezone.utc).date().isoformat()
+def create_profit_take_plan(symbol: str, original_qty: float) -> None:
+    """No-op if a plan already exists -- original_qty is pinned at whatever
+    it was when the plan was first created (see profit_taker.py for why)."""
     with get_conn() as conn:
         conn.execute(
-            "INSERT INTO profit_takes (symbol, taken_date) VALUES (?, ?) "
-            "ON CONFLICT(symbol) DO UPDATE SET taken_date = excluded.taken_date",
-            (symbol, today),
+            "INSERT OR IGNORE INTO profit_take_plans (symbol, original_qty, triggered_tiers, created_at) "
+            "VALUES (?, ?, '', ?)",
+            (symbol, original_qty, now_iso()),
         )
+
+
+def mark_tier_triggered(symbol: str, threshold: float) -> None:
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT triggered_tiers FROM profit_take_plans WHERE symbol = ?", (symbol,)
+        ).fetchone()
+        existing = [t for t in (row["triggered_tiers"] if row else "").split(",") if t]
+        existing.append(str(threshold))
+        conn.execute(
+            "UPDATE profit_take_plans SET triggered_tiers = ? WHERE symbol = ?",
+            (",".join(existing), symbol),
+        )
+
+
+def clear_stale_profit_take_plans(open_symbols: set[str]) -> None:
+    """Drop plans for symbols no longer held, so a future re-buy starts a
+    fresh tiered plan instead of resuming a stale, already-mostly-triggered one."""
+    with get_conn() as conn:
+        rows = conn.execute("SELECT symbol FROM profit_take_plans").fetchall()
+        stale = [r["symbol"] for r in rows if r["symbol"] not in open_symbols]
+        if stale:
+            conn.executemany("DELETE FROM profit_take_plans WHERE symbol = ?", [(s,) for s in stale])
 
 
 def is_in_cooldown(symbol: str, cooldown_minutes: int) -> bool:

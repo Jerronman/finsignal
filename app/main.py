@@ -10,7 +10,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app import db, poller, profit_taker
 from app.auth import BasicAuthMiddleware
-from app.routes import news, trading, watchlist
+from app.routes import meta, news, trading, watchlist
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 
@@ -47,6 +47,7 @@ app.add_middleware(BasicAuthMiddleware)
 app.include_router(news.router, prefix="/api")
 app.include_router(trading.router, prefix="/api")
 app.include_router(watchlist.router, prefix="/api")
+app.include_router(meta.router, prefix="/api")
 
 app.mount("/static", NoCacheStaticFiles(directory="static"), name="static")
 
@@ -59,3 +60,8 @@ async def index():
 @app.get("/trades")
 async def trades_page():
     return FileResponse("static/trades.html", headers=NO_CACHE_HEADERS)
+
+
+@app.get("/strategy")
+async def strategy_page():
+    return FileResponse("static/strategy.html", headers=NO_CACHE_HEADERS)

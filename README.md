@@ -81,6 +81,10 @@ closer-to-real-time polling.
 - **Trade Log** (`/trades`) — every trade decision (executed or skipped),
   with the source headline, and whether the Alpaca order has actually
   filled yet.
+- **Strategy** (`/strategy`) — a plain-language explanation of both the
+  buy/sell logic and the take-profit tiers, rendered live from whatever's
+  actually configured right now (not a static description that can drift
+  out of sync with `.env`).
 - New items and executed trades trigger a browser notification and are read
   aloud (Web Speech API) — toggle off with the checkbox if it gets noisy.
 
@@ -88,10 +92,24 @@ closer-to-real-time polling.
 
 Independent of the news signal, and only calls Alpaca (no news-API quota
 impact): every `TAKE_PROFIT_CHECK_INTERVAL_SECONDS` (default 2 min), each
-open position's gain *today* is checked. The first time it's up
-`TAKE_PROFIT_PCT` (default 5%), `TAKE_PROFIT_SELL_FRACTION` (default 25%) of
-the position is sold — at most once per symbol per calendar day. There's no
-symmetric stop-loss; a position down 5% today doesn't trigger anything.
+open position's gain **since your entry price** is checked (Alpaca's
+`unrealized_plpc` — not "today's" move). `TAKE_PROFIT_TIERS` defines a
+ratchet: each tier sells a fixed fraction of the **original** share count
+the first time it's crossed. Default:
+
+| Gain since entry | Action | Cumulative sold |
+|---|---|---|
+| +5% | sell 25% of original | 25% |
+| +10% | sell another 25% | 50% |
+| +20% | sell another 25% | 75% |
+| +50% | sell whatever remains | 100% |
+
+If price gaps past several tiers between checks, all newly-crossed tiers
+fire in the same pass. "Original" is snapshotted the first time the checker
+sees the position open; buying more of the same symbol later doesn't
+retroactively grow it until the position fully closes and a fresh plan
+starts. **There's no symmetric stop-loss** — a losing position has no
+automatic exit here, deliberately deferred for now.
 
 ## Configuration (`.env`)
 
@@ -102,7 +120,7 @@ symmetric stop-loss; a position down 5% today doesn't trigger anything.
 | `MIN_TRADE_USD` / `MAX_TRADE_USD` | 200 / 1000 | Position size range, scaled by confidence |
 | `COOLDOWN_MINUTES` | 60 | Minimum gap between trades on the same symbol |
 | `SIGNAL_MODEL` | claude-haiku-4-5 | Model used to judge each news item |
-| `TAKE_PROFIT_PCT` / `TAKE_PROFIT_SELL_FRACTION` | 0.05 / 0.25 | Take-profit threshold and trim size |
+| `TAKE_PROFIT_TIERS` | `5:0.25,10:0.25,20:0.25,50:0.25` | Take-profit tiers, `gain%:fraction_of_original` |
 | `TAKE_PROFIT_CHECK_INTERVAL_SECONDS` | 120 | How often positions are checked for take-profit |
 | `APP_USERNAME` / `APP_PASSWORD` | *(unset)* | Shared login for the whole app — blank means no login prompt (fine for local use, required once hosted) |
 
@@ -160,3 +178,5 @@ none of which exist today because they weren't needed for paper trading.
 - Max concurrent positions / daily trade caps (only the per-symbol cooldown
   guardrail exists).
 - Manual approve-before-execute mode — everything here is fully automatic.
+- **Stop-loss / downside protection.** The take-profit tiers only manage
+  winners; a losing position has no automatic exit today.

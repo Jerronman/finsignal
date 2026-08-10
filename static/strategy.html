@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FinSignal — Strategy</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header>
+  <h1>FinSignal <span class="badge">PAPER TRADING</span></h1>
+  <nav class="tabs">
+    <a href="/">Activity</a>
+    <a href="/trades">Trade Log</a>
+    <a href="/strategy" class="active">Strategy</a>
+  </nav>
+</header>
+
+<main class="trades-main">
+  <section>
+    <h2>How it decides to buy or sell</h2>
+    <p>
+      Every <b id="poll-interval">…</b>, the app pulls general financial news
+      from Marketaux, which tags each article with the real stock tickers
+      it's about. For every tagged symbol, Claude judges the likely
+      short-term price reaction as <span class="pill buy">buy</span>,
+      <span class="pill sell">sell</span>, or <span class="pill hold">hold</span>,
+      with a confidence score and one sentence of reasoning.
+    </p>
+    <p>A verdict only becomes a trade if it clears every guardrail:</p>
+    <ul>
+      <li><code>hold</code>, or confidence below <b id="min-confidence">…</b> → skipped</li>
+      <li>That symbol already traded within the last <b id="cooldown">…</b> → skipped</li>
+      <li><code>sell</code> with no existing position in that symbol → skipped (no shorting)</li>
+      <li>Alpaca can't actually trade the symbol (foreign listing, inactive/expired warrant, etc.) → skipped</li>
+    </ul>
+    <p>
+      If none of those block it: <code>buy</code> submits a market order sized
+      between <b id="min-trade">…</b> and <b id="max-trade">…</b>, scaled by
+      confidence; <code>sell</code> closes the existing position entirely.
+    </p>
+  </section>
+
+  <section>
+    <h2>Take-profit strategy</h2>
+    <p>
+      Independent of the news signal — this only watches your own entry
+      price, checked roughly every <b id="tp-interval">…</b>. As a position
+      gains value <em>since you bought it</em> (not "today's" move), a
+      fraction of the <strong>original</strong> share count is sold off at
+      each tier crossed:
+    </p>
+    <div class="table-scroll">
+      <table id="tiers-table">
+        <thead>
+          <tr><th>Gain since entry</th><th>Action</th><th>Cumulative sold</th></tr>
+        </thead>
+        <tbody id="tiers-body"></tbody>
+      </table>
+    </div>
+    <p class="hint">
+      Each tier fires once per position. If the price jumps past several
+      tiers between checks (a gap move), all newly-crossed tiers fire in the
+      same pass rather than only the highest one. "Original" share count is
+      set the first time this checker sees the position open — if you buy
+      more of the same symbol later while a plan is already tracking it,
+      those extra shares aren't folded into the plan until the position
+      fully closes and a fresh one starts on the next buy.
+    </p>
+    <p class="hint" style="color: var(--amber);">
+      <strong>No downside protection yet.</strong> There's no stop-loss —
+      a position that loses value has no automatic exit here. It only
+      closes if a fresh bearish news item produces a <code>sell</code>
+      verdict for that specific symbol. This is a deliberate, known gap,
+      not an oversight.
+    </p>
+  </section>
+</main>
+
+<script src="/static/strategy.js"></script>
+</body>
+</html>
