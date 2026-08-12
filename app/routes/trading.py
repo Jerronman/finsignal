@@ -30,10 +30,12 @@ async def orders(limit: int = 50):
 
 
 @router.get("/trades")
-async def trades(limit: int = 100):
+async def trades(limit: int = 100, symbol: str | None = None):
     """Full trade log, each row annotated with whether its Alpaca order has
-    actually filled yet (None for rows with no order -- skips/errors)."""
-    trade_rows = await asyncio.to_thread(db.get_trades, limit)
+    actually filled yet (None for rows with no order -- skips/errors).
+    Pass `symbol` to search the full history at the database level rather
+    than whatever's already been fetched into the page."""
+    trade_rows = await asyncio.to_thread(db.get_trades, limit, symbol)
     order_ids = {t["order_id"] for t in trade_rows if t.get("order_id")}
     status_by_id: dict[str, str] = {}
     if order_ids:

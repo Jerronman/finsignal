@@ -8,6 +8,8 @@ const symbolFilterInput = document.getElementById('symbol-filter');
 const ALWAYS_VISIBLE = new Set(['bought', 'sold', 'profit_take', 'error', 'skipped_not_tradable']);
 
 let allTrades = [];
+let searchResults = null; // null = not searching; array = active search results from the server
+let searchDebounceTimer = null;
 
 function escapeHtml(s) {
   const div = document.createElement('div');
@@ -62,21 +64,36 @@ function rowHtml(t) {
 }
 
 function renderTrades() {
-  let filtered = showSkippedToggle.checked ? allTrades : allTrades.filter(t => ALWAYS_VISIBLE.has(t.outcome));
-
-  const query = symbolFilterInput.value.trim().toUpperCase();
-  if (query) {
-    filtered = filtered.filter(t => (t.symbol || '').toUpperCase().includes(query));
-  }
+  const searching = searchResults !== null;
+  const source = searching ? searchResults : allTrades;
+  const filtered = showSkippedToggle.checked ? source : source.filter(t => ALWAYS_VISIBLE.has(t.outcome));
 
   tbody.innerHTML = filtered.length
     ? filtered.map(rowHtml).join('')
-    : `<tr><td colspan="6" class="meta">${query ? `No trades matching "${escapeHtml(query)}"` : 'No trades yet'}</td></tr>`;
+    : `<tr><td colspan="6" class="meta">${searching ? `No trades matching "${escapeHtml(symbolFilterInput.value.trim())}"` : 'No trades yet'}</td></tr>`;
 }
 
 async function loadTrades() {
   const res = await fetch('/api/trades?limit=300');
   allTrades = await res.json();
+  renderTrades();
+}
+
+async function runSearch(query) {
+  if (!query) {
+    searchResults = null;
+    renderTrades();
+    return;
+  }
+  // Searches the full history at the database level (not just whatever's
+  // already loaded) -- so an old match doesn't get missed just because a
+  // lot has happened since.
+  try {
+    const res = await fetch(`/api/trades?symbol=${encodeURIComponent(query)}&limit=1000`);
+    searchResults = await res.json();
+  } catch (e) {
+    searchResults = [];
+  }
   renderTrades();
 }
 
@@ -117,9 +134,16 @@ async function refreshAccount() {
 }
 
 showSkippedToggle.addEventListener('change', renderTrades);
-symbolFilterInput.addEventListener('input', renderTrades);
+symbolFilterInput.addEventListener('input', () => {
+  clearTimeout(searchDebounceTimer);
+  const query = symbolFilterInput.value.trim();
+  searchDebounceTimer = setTimeout(() => runSearch(query), 300);
+});
 
 loadTrades();
 refreshAccount();
-setInterval(loadTrades, 30000);
+setInterval(() => {
+  loadTrades();
+  if (searchResults !== null) runSearch(symbolFilterInput.value.trim());
+}, 30000);
 setInterval(refreshAccount, 30000);

@@ -190,21 +190,30 @@ def insert_trade(
         )
 
 
-def get_trades(limit: int = 100) -> list[dict[str, Any]]:
+def get_trades(limit: int = 100, symbol: str | None = None) -> list[dict[str, Any]]:
     """Full trade log (executed and skipped), newest first, with the source
     article's headline + URL attached when there is one (profit-take trims
-    have no article, so both are null for those)."""
+    have no article, so both are null for those).
+
+    If `symbol` is given, it's applied as a SQL filter *before* the limit --
+    a search this way always finds a match regardless of how much other
+    activity has happened since, unlike filtering an already-limited batch
+    fetched client-side (which can silently miss older matching rows once
+    they've scrolled past the fetch window)."""
+    query = """
+        SELECT t.*, n.headline, n.url as headline_url
+        FROM trades t
+        LEFT JOIN news_items n ON n.id = t.article_id
+    """
+    params: list[Any] = []
+    if symbol:
+        query += " WHERE UPPER(t.symbol) LIKE ?"
+        params.append(f"%{symbol.upper()}%")
+    query += " ORDER BY t.created_at DESC LIMIT ?"
+    params.append(limit)
+
     with get_conn() as conn:
-        rows = conn.execute(
-            """
-            SELECT t.*, n.headline, n.url as headline_url
-            FROM trades t
-            LEFT JOIN news_items n ON n.id = t.article_id
-            ORDER BY t.created_at DESC
-            LIMIT ?
-            """,
-            (limit,),
-        ).fetchall()
+        rows = conn.execute(query, params).fetchall()
         return [dict(r) for r in rows]
 
 
