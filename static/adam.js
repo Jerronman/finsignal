@@ -4,6 +4,7 @@ const input = document.getElementById('tickers-input');
 const runBtn = document.getElementById('run-btn');
 const statusEl = document.getElementById('status');
 const tbody = document.getElementById('adam-body');
+const runsBody = document.getElementById('adam-runs-body');
 
 function escapeHtml(s) {
   const div = document.createElement('div');
@@ -58,6 +59,40 @@ async function loadDefaultTickers() {
   }
 }
 
+function formatTime(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (isNaN(d)) return iso;
+  return d.toLocaleString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+}
+
+function runRowHtml(run) {
+  const matches = run.results || [];
+  const matchesLabel = matches.length
+    ? `${matches.length} — ${matches.map(m => escapeHtml(m.ticker)).join(', ')}`
+    : '0';
+  return `
+    <tr>
+      <td>${escapeHtml(formatTime(run.ran_at))}</td>
+      <td><span class="pill ${run.source === 'auto' ? 'hold' : 'buy'}">${escapeHtml(run.source)}</span></td>
+      <td>${run.tickers_screened.length}</td>
+      <td style="color: ${matches.length ? 'var(--green)' : 'var(--muted)'}">${matchesLabel}</td>
+    </tr>
+  `;
+}
+
+async function loadRuns() {
+  try {
+    const res = await fetch('/api/adam/runs?limit=50');
+    const runs = await res.json();
+    runsBody.innerHTML = runs.length
+      ? runs.map(runRowHtml).join('')
+      : '<tr><td colspan="4" class="meta">No runs yet</td></tr>';
+  } catch (e) {
+    runsBody.innerHTML = '<tr><td colspan="4" class="meta">Run history unavailable</td></tr>';
+  }
+}
+
 function rowHtml(r) {
   return `
     <tr>
@@ -100,6 +135,7 @@ form.addEventListener('submit', async (e) => {
     tbody.innerHTML = results.length
       ? results.map(rowHtml).join('')
       : '<tr><td colspan="13" class="meta">No stocks matched the criteria</td></tr>';
+    loadRuns();
   } catch (e) {
     statusEl.textContent = 'Screener run failed — check the server logs.';
     tbody.innerHTML = '<tr><td colspan="13" class="meta">Error running screener</td></tr>';
@@ -110,5 +146,7 @@ form.addEventListener('submit', async (e) => {
 });
 
 loadDefaultTickers();
+loadRuns();
 refreshAccount();
+setInterval(loadRuns, 60000);
 setInterval(refreshAccount, 30000);

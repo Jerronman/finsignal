@@ -86,6 +86,7 @@ closer-to-real-time polling.
   actually configured right now (not a static description that can drift
   out of sync with `.env`).
 - **Options** (`/options`) — separate options-trading pipeline, see below.
+- **Adam** (`/adam`) — on-demand + auto-running value screener, see below.
 - New items and executed trades trigger a browser notification and are read
   aloud (Web Speech API) — toggle off with the checkbox if it gets noisy.
 
@@ -145,6 +146,25 @@ retroactively grow it until the position fully closes and a fresh plan
 starts. **There's no symmetric stop-loss** — a losing position has no
 automatic exit here, deliberately deferred for now.
 
+## Adam (value/pullback screener)
+
+Completely separate from everything above — no news signal, no automation
+of trades, never touches Alpaca. Screens a ticker list (your watchlist, or
+a 20-stock demo list if it's empty) via Yahoo Finance for stocks that are:
+
+1. Down **5–30%** from their 52-week high (a moderate pullback, not a stock
+   in freefall)
+2. Reasonably valued (P/E ≤ 25, P/B ≤ 4)
+3. Financially healthy (Debt/Equity ≤ 150%, Current Ratio ≥ 1.2, positive
+   free cash flow)
+
+Runs automatically every 30 minutes, aligned to wall-clock `:00`/`:30`
+(UTC) rather than just every 1800 seconds from whenever the app started.
+You can also trigger it on demand from the Adam tab at any time. **Every
+run is recorded** — auto or manual, match or no match — in a Run History
+table, specifically so a long stretch of "found nothing" is visibly a real
+result, not silence you have to guess about.
+
 ## Configuration (`.env`)
 
 | Var | Default | Meaning |
@@ -161,13 +181,16 @@ automatic exit here, deliberately deferred for now.
 | `OPTIONS_MAX_TRADE_USD` | 5000 | Per-trade budget cap for options |
 | `OPTIONS_MIN_OPEN_INTEREST` / `OPTIONS_MAX_SPREAD_PCT` | 50 / 0.15 | Liquidity filter thresholds |
 | `OPTIONS_TIERS` | `25:0.25,50:0.25,75:0.25,200:0.25` | Options take-profit tiers, same format as stocks |
+| `EXTENDED_HOURS_ENABLED` | true | Auto-switch stock orders to limit+extended_hours outside 9:30am-4pm ET |
+| `EXTENDED_HOURS_LIMIT_BUFFER_PCT` | 0.0025 | Limit price buffer (±0.25%) for extended-hours orders |
+| `ADAM_AUTO_RUN_ENABLED` | true | Auto-run the Adam screener every 30 min (`:00`/`:30`, UTC) |
 | `APP_USERNAME` / `APP_PASSWORD` | *(unset)* | Shared login for the whole app — blank means no login prompt (fine for local use, required once hosted) |
 
 ## Hosting (Railway)
 
-The app has three always-running background loops (news poller, stock
-take-profit checker, options manager), so it needs a host that keeps a
-process alive 24/7, not a
+The app has four always-running background loops (news poller, stock
+take-profit checker, options manager, Adam auto-run scheduler), so it needs
+a host that keeps a process alive 24/7, not a
 request-only serverless function. It also writes to a local SQLite file, so
 it needs persistent storage. [Railway](https://railway.com) fits both, and
 doesn't require a credit card to start.

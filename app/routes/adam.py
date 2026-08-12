@@ -24,6 +24,7 @@ async def run_screener(body: RunRequest):
             tickers = screener.DEFAULT_WATCHLIST
 
     results = await asyncio.to_thread(screener.screen_stocks, tickers)
+    await asyncio.to_thread(db.insert_adam_run, "manual", tickers, results)
     return {"tickers_screened": tickers, "results": results}
 
 
@@ -31,3 +32,10 @@ async def run_screener(body: RunRequest):
 async def default_tickers():
     watchlist = await asyncio.to_thread(db.get_watchlist)
     return {"tickers": watchlist or screener.DEFAULT_WATCHLIST, "source": "watchlist" if watchlist else "demo"}
+
+
+@router.get("/adam/runs")
+async def get_runs(limit: int = 50):
+    """Full run history, auto and manual, including runs that found
+    nothing -- so the history itself proves the auto-run is alive."""
+    return await asyncio.to_thread(db.get_adam_runs, limit)

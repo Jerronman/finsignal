@@ -12,9 +12,12 @@ Tables:
   option_cooldowns      last time we options-traded each underlying symbol
   option_trades         one row per options trade decision -- traded or skipped, with why
   option_position_plans per-contract tiered take-profit plan (original contract count + tiers fired)
+
+  adam_runs          one row per Adam screener run (auto or manual), including empty ones
 """
 from __future__ import annotations
 
+import json
 import sqlite3
 from contextlib import contextmanager
 from datetime import datetime, timezone
@@ -101,6 +104,15 @@ CREATE TABLE IF NOT EXISTS option_position_plans (
     original_qty INTEGER NOT NULL,
     triggered_tiers TEXT NOT NULL DEFAULT '',
     created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS adam_runs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    source TEXT NOT NULL,           -- 'auto' | 'manual'
+    tickers_screened TEXT NOT NULL, -- comma-separated
+    match_count INTEGER NOT NULL,
+    results_json TEXT NOT NULL,     -- json-encoded list of matching rows ('[]' if none)
+    ran_at TEXT NOT NULL
 );
 """
 
@@ -387,6 +399,30 @@ def clear_stale_option_plans(open_contract_symbols: set[str]) -> None:
             conn.executemany(
                 "DELETE FROM option_position_plans WHERE contract_symbol = ?", [(s,) for s in stale]
             )
+
+
+def insert_adam_run(source: str, tickers: list[str], results: list[dict[str, Any]]) -> None:
+    with get_conn() as conn:
+        conn.execute(
+            "INSERT INTO adam_runs (source, tickers_screened, match_count, results_json, ran_at) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (source, ",".join(tickers), len(results), json.dumps(results), now_iso()),
+        )
+
+
+def get_adam_runs(limit: int = 50) -> list[dict[str, Any]]:
+    with get_conn() as conn:
+        rows = conn.execute(
+            "SELECT * FROM adam_runs ORDER BY ran_at DESC LIMIT ?", (limit,)
+        ).fetchall()
+    out = []
+    for r in rows:
+        row = dict(r)
+        row["tickers_screened"] = row["tickers_screened"].split(",") if row["tickers_screened"] else []
+        row["results"] = json.loads(row["results_json"])
+        del row["results_json"]
+        out.append(row)
+    return out
 
 
 def get_recent_activity(limit: int = 50) -> list[dict[str, Any]]:

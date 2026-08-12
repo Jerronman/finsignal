@@ -23,10 +23,11 @@
   <section>
     <h2>Adam — Value/Pullback Screener</h2>
     <p class="hint">
-      On-demand only — this has nothing to do with the news signal or
-      automated trading elsewhere in the app. Click Run, wait a bit (it
-      fetches each ticker from Yahoo Finance one at a time), get a table.
-      Nothing here is saved between runs.
+      Nothing to do with the news signal or automated trading elsewhere in
+      the app — this only ever looks, never trades. Runs automatically
+      every 30 minutes (aligned to :00/:30), and you can also run it
+      on-demand below. Every run is recorded in the history further down,
+      including ones that find nothing.
     </p>
     <p class="hint">
       Looks for stocks down <strong>5–30%</strong> from their 52-week high,
@@ -63,6 +64,32 @@
         </thead>
         <tbody id="adam-body">
           <tr><td colspan="13" class="meta">Click "Run Screener" to start</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="trades-panel">
+    <div class="trades-header">
+      <h2>Run History</h2>
+    </div>
+    <p class="hint">
+      Every auto and manual run, newest first — including the ones that
+      found nothing, so this list itself proves the 30-minute schedule is
+      actually running.
+    </p>
+    <div class="table-scroll">
+      <table id="adam-runs-table">
+        <thead>
+          <tr>
+            <th>Time</th>
+            <th>Source</th>
+            <th>Tickers Screened</th>
+            <th>Matches</th>
+          </tr>
+        </thead>
+        <tbody id="adam-runs-body">
+          <tr><td colspan="4" class="meta">Loading…</td></tr>
         </tbody>
       </table>
     </div>

@@ -8,7 +8,7 @@ from fastapi import FastAPI
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from app import db, options_manager, poller, profit_taker
+from app import adam_scheduler, db, options_manager, poller, profit_taker
 from app.auth import BasicAuthMiddleware
 from app.routes import adam, meta, news, options, trading, watchlist
 
@@ -37,10 +37,12 @@ async def lifespan(app: FastAPI):
     news_task = asyncio.create_task(poller.run_forever())
     profit_task = asyncio.create_task(profit_taker.run_forever())
     options_task = asyncio.create_task(options_manager.run_forever())
+    adam_task = asyncio.create_task(adam_scheduler.run_forever())
     yield
     news_task.cancel()
     profit_task.cancel()
     options_task.cancel()
+    adam_task.cancel()
 
 
 app = FastAPI(title="FinSignal", lifespan=lifespan)

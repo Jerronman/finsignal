@@ -203,13 +203,14 @@ h2 { margin: 0 0 12px; font-size: 13px; text-transform: uppercase; letter-spacin
 
 .table-scroll { overflow-x: auto; }
 
-#trades-table, #positions-table, #options-trades-table, #adam-table {
+#trades-table, #positions-table, #options-trades-table, #adam-table, #adam-runs-table {
   width: 100%; border-collapse: collapse; font-size: 14px;
 }
 #trades-table th, #trades-table td,
 #positions-table th, #positions-table td,
 #options-trades-table th, #options-trades-table td,
-#adam-table th, #adam-table td {
+#adam-table th, #adam-table td,
+#adam-runs-table th, #adam-runs-table td {
   text-align: left;
   padding: 8px 10px;
   border-bottom: 1px solid var(--border);
@@ -217,11 +218,12 @@ h2 { margin: 0 0 12px; font-size: 13px; text-transform: uppercase; letter-spacin
 }
 #trades-table td.why, #options-trades-table td.why { white-space: normal; color: var(--muted); min-width: 280px; }
 #trades-table td.why em, #options-trades-table td.why em { color: var(--text); font-style: normal; }
-#trades-table th, #positions-table th, #options-trades-table th, #adam-table th {
+#adam-runs-table td:last-child { white-space: normal; }
+#trades-table th, #positions-table th, #options-trades-table th, #adam-table th, #adam-runs-table th {
   color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .03em;
 }
 #trades-table tbody tr:hover, #positions-table tbody tr:hover,
-#options-trades-table tbody tr:hover, #adam-table tbody tr:hover {
+#options-trades-table tbody tr:hover, #adam-table tbody tr:hover, #adam-runs-table tbody tr:hover {
   background: rgba(255,255,255,.02);
 }
 

@@ -89,6 +89,13 @@ OPTIONS_CHECK_INTERVAL_SECONDS = int(os.getenv("OPTIONS_CHECK_INTERVAL_SECONDS",
 # close-out rather than being cut early.
 OPTIONS_TIERS = _parse_tiers(os.getenv("OPTIONS_TIERS", "25:0.25,50:0.25,75:0.25,200:0.25"))
 
+# --- Adam (on-demand screener, also auto-run) ---
+# Runs automatically every 30 minutes, aligned to wall-clock :00/:30 (UTC),
+# not just every 1800s from whenever the app started. Every run -- auto or
+# manual -- is recorded, including ones that find nothing, so silence isn't
+# mistaken for "it's not running."
+ADAM_AUTO_RUN_ENABLED = os.getenv("ADAM_AUTO_RUN_ENABLED", "true").lower() == "true"
+
 DB_PATH = os.getenv("DB_PATH", str(BASE_DIR / "finsignal.db"))
 
 # --- Access control ---
