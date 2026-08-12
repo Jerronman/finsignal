@@ -4,9 +4,11 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+from alpaca.data.historical.stock import StockHistoricalDataClient
+from alpaca.data.requests import StockLatestTradeRequest
 from alpaca.trading.client import TradingClient
 from alpaca.trading.enums import AssetClass, AssetStatus, OrderSide, PositionIntent, QueryOrderStatus, TimeInForce
-from alpaca.trading.requests import GetOrdersRequest, GetPortfolioHistoryRequest, MarketOrderRequest
+from alpaca.trading.requests import GetOrdersRequest, GetPortfolioHistoryRequest, LimitOrderRequest, MarketOrderRequest
 
 from app import config
 from app.broker.base import BrokerInterface
@@ -21,6 +23,7 @@ class AlpacaBroker(BrokerInterface):
             config.ALPACA_SECRET_KEY,
             paper=config.ALPACA_PAPER,
         )
+        self._stock_data_client = StockHistoricalDataClient(config.ALPACA_API_KEY, config.ALPACA_SECRET_KEY)
         self._asset_name_cache: dict[str, str] = {}
 
     def _get_asset_name(self, symbol: str) -> str:
@@ -34,6 +37,46 @@ class AlpacaBroker(BrokerInterface):
                 self._asset_name_cache[symbol] = symbol
         return self._asset_name_cache[symbol]
 
+    def _is_regular_hours(self) -> bool:
+        """Whether it's currently regular market hours (9:30am-4pm ET) per
+        Alpaca's own clock. Defaults to True (regular-hours order shape) if
+        the clock check itself fails -- the existing, more-tested code path,
+        and a safe failure mode either way (worst case: a market/notional
+        order gets rejected outside hours and is caught upstream as an error,
+        rather than us guessing wrong about extended-hours pricing)."""
+        try:
+            return bool(self._client.get_clock().is_open)
+        except Exception:
+            log.exception("Failed to check market clock -- defaulting to regular-hours order construction")
+            return True
+
+    def _get_stock_price(self, symbol: str) -> float | None:
+        try:
+            trade = self._stock_data_client.get_stock_latest_trade(StockLatestTradeRequest(symbol_or_symbols=symbol))
+            return float(trade[symbol].price)
+        except Exception:
+            log.exception("Failed to fetch current price for %s", symbol)
+            return None
+
+    def _extended_hours_limit_order(self, symbol: str, side: OrderSide, qty: float) -> LimitOrderRequest:
+        """Builds the limit+extended_hours order required outside regular
+        hours -- market and notional orders are rejected then. Buys bid
+        slightly above, sells offer slightly below, the last trade price,
+        to make an actual fill likely without chasing too far."""
+        price = self._get_stock_price(symbol)
+        if not price or price <= 0:
+            raise RuntimeError(f"Could not get a current price for {symbol} to build an extended-hours order")
+        buffer = config.EXTENDED_HOURS_LIMIT_BUFFER_PCT
+        limit_price = round(price * (1 + buffer) if side == OrderSide.BUY else price * (1 - buffer), 2)
+        return LimitOrderRequest(
+            symbol=symbol,
+            qty=qty,
+            side=side,
+            time_in_force=TimeInForce.DAY,
+            limit_price=limit_price,
+            extended_hours=True,
+        )
+
     def is_tradable(self, symbol: str) -> bool:
         try:
             asset = self._client.get_asset(symbol)
@@ -45,12 +88,21 @@ class AlpacaBroker(BrokerInterface):
 
     def place_notional_order(self, symbol: str, side: str, notional_usd: float) -> dict[str, Any]:
         order_side = OrderSide.BUY if side == "buy" else OrderSide.SELL
-        req = MarketOrderRequest(
-            symbol=symbol,
-            notional=round(notional_usd, 2),
-            side=order_side,
-            time_in_force=TimeInForce.DAY,
-        )
+
+        if config.EXTENDED_HOURS_ENABLED and not self._is_regular_hours():
+            price = self._get_stock_price(symbol)
+            if not price or price <= 0:
+                raise RuntimeError(f"Could not get a current price for {symbol} to size an extended-hours order")
+            qty = round(notional_usd / price, 6)
+            req = self._extended_hours_limit_order(symbol, order_side, qty)
+        else:
+            req = MarketOrderRequest(
+                symbol=symbol,
+                notional=round(notional_usd, 2),
+                side=order_side,
+                time_in_force=TimeInForce.DAY,
+            )
+
         order = self._client.submit_order(order_data=req)
         return {
             "order_id": str(order.id),
@@ -61,6 +113,15 @@ class AlpacaBroker(BrokerInterface):
         }
 
     def close_position(self, symbol: str) -> dict[str, Any]:
+        if config.EXTENDED_HOURS_ENABLED and not self._is_regular_hours():
+            # The dedicated close-position endpoint always submits a market
+            # order and has no extended_hours option -- route a full close
+            # through the regular limit-order path instead.
+            qty = self.get_position_qty(symbol)
+            if qty <= 0:
+                raise RuntimeError(f"No position to close for {symbol}")
+            return self.sell_qty(symbol, qty)
+
         order = self._client.close_position(symbol)
         order_id = getattr(order, "id", None)
         status = getattr(order, "status", "closed")
@@ -72,12 +133,16 @@ class AlpacaBroker(BrokerInterface):
         }
 
     def sell_qty(self, symbol: str, qty: float) -> dict[str, Any]:
-        req = MarketOrderRequest(
-            symbol=symbol,
-            qty=qty,
-            side=OrderSide.SELL,
-            time_in_force=TimeInForce.DAY,
-        )
+        if config.EXTENDED_HOURS_ENABLED and not self._is_regular_hours():
+            req = self._extended_hours_limit_order(symbol, OrderSide.SELL, qty)
+        else:
+            req = MarketOrderRequest(
+                symbol=symbol,
+                qty=qty,
+                side=OrderSide.SELL,
+                time_in_force=TimeInForce.DAY,
+            )
+
         order = self._client.submit_order(order_data=req)
         return {
             "order_id": str(order.id),

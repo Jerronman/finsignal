@@ -1,10 +1,13 @@
 const accountEl = document.getElementById('account-summary');
 const tbody = document.getElementById('trades-body');
 const showSkippedToggle = document.getElementById('show-skipped');
+const symbolFilterInput = document.getElementById('symbol-filter');
 
 // Shown even with "show skipped" off -- these are attempted trades that
 // were blocked, not routine guardrail skips (hold/low-confidence/cooldown).
 const ALWAYS_VISIBLE = new Set(['bought', 'sold', 'profit_take', 'error', 'skipped_not_tradable']);
+
+let allTrades = [];
 
 function escapeHtml(s) {
   const div = document.createElement('div');
@@ -58,13 +61,23 @@ function rowHtml(t) {
   `;
 }
 
-async function loadTrades() {
-  const res = await fetch('/api/trades?limit=300');
-  const trades = await res.json();
-  const filtered = showSkippedToggle.checked ? trades : trades.filter(t => ALWAYS_VISIBLE.has(t.outcome));
+function renderTrades() {
+  let filtered = showSkippedToggle.checked ? allTrades : allTrades.filter(t => ALWAYS_VISIBLE.has(t.outcome));
+
+  const query = symbolFilterInput.value.trim().toUpperCase();
+  if (query) {
+    filtered = filtered.filter(t => (t.symbol || '').toUpperCase().includes(query));
+  }
+
   tbody.innerHTML = filtered.length
     ? filtered.map(rowHtml).join('')
-    : '<tr><td colspan="6" class="meta">No trades yet</td></tr>';
+    : `<tr><td colspan="6" class="meta">${query ? `No trades matching "${escapeHtml(query)}"` : 'No trades yet'}</td></tr>`;
+}
+
+async function loadTrades() {
+  const res = await fetch('/api/trades?limit=300');
+  allTrades = await res.json();
+  renderTrades();
 }
 
 function plBadgeHtml(acct) {
@@ -103,7 +116,8 @@ async function refreshAccount() {
   }
 }
 
-showSkippedToggle.addEventListener('change', loadTrades);
+showSkippedToggle.addEventListener('change', renderTrades);
+symbolFilterInput.addEventListener('input', renderTrades);
 
 loadTrades();
 refreshAccount();

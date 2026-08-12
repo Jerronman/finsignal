@@ -186,8 +186,20 @@ h2 { margin: 0 0 12px; font-size: 13px; text-transform: uppercase; letter-spacin
   align-items: center;
   justify-content: space-between;
   margin-bottom: 12px;
+  flex-wrap: wrap;
+  gap: 10px;
 }
 .trades-header h2 { margin: 0; }
+.trades-header-controls { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+#symbol-filter {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 6px 10px;
+  font-size: 14px;
+  width: 160px;
+}
 
 .table-scroll { overflow-x: auto; }
 

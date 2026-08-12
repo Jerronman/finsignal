@@ -23,6 +23,15 @@ ALPACA_API_KEY = os.getenv("ALPACA_API_KEY", "")
 ALPACA_SECRET_KEY = os.getenv("ALPACA_SECRET_KEY", "")
 ALPACA_PAPER = os.getenv("ALPACA_PAPER", "true").lower() == "true"
 
+# Stock orders outside regular hours (9:30am-4pm ET) must be limit orders
+# sized in shares with extended_hours=True -- market/notional orders (used
+# during regular hours) are rejected outside them. When enabled, buys,
+# sells, and take-profit trims automatically switch order shape based on
+# Alpaca's own market clock; regular-hours behavior is unchanged either way.
+# Options are unaffected -- US options markets have no extended session.
+EXTENDED_HOURS_ENABLED = os.getenv("EXTENDED_HOURS_ENABLED", "true").lower() == "true"
+EXTENDED_HOURS_LIMIT_BUFFER_PCT = float(os.getenv("EXTENDED_HOURS_LIMIT_BUFFER_PCT", "0.0025"))
+
 # --- Anthropic signal engine ---
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY", "")
 SIGNAL_MODEL = os.getenv("SIGNAL_MODEL", "claude-haiku-4-5")
