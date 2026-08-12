@@ -1,5 +1,6 @@
 const feedEl = document.getElementById('feed');
 const positionsEl = document.getElementById('positions');
+const stocksPlSummaryEl = document.getElementById('stocks-pl-summary');
 const accountEl = document.getElementById('account-summary');
 const watchlistListEl = document.getElementById('watchlist-list');
 const watchlistForm = document.getElementById('watchlist-form');
@@ -149,6 +150,17 @@ function realizedBadgeHtml(acct) {
   `;
 }
 
+function unrealizedSummaryHtml(label, value) {
+  if (value == null) return '';
+  const up = value >= 0;
+  const sign = up ? '+' : '';
+  return `
+    <div class="pl-summary-line" style="color: ${up ? 'var(--green)' : 'var(--red)'}">
+      ${label} unrealized: <b>${sign}$${value.toFixed(2)}</b>
+    </div>
+  `;
+}
+
 async function refreshAccount() {
   try {
     const res = await fetch('/api/account');
@@ -159,6 +171,9 @@ async function refreshAccount() {
       ${plBadgeHtml(acct)}
       ${realizedBadgeHtml(acct)}
     `;
+    if (stocksPlSummaryEl) {
+      stocksPlSummaryEl.innerHTML = unrealizedSummaryHtml('Stocks', acct.stocks_unrealized_pl);
+    }
   } catch (e) {
     accountEl.textContent = 'Account unavailable — check Alpaca keys in .env';
   }

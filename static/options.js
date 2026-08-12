@@ -1,4 +1,5 @@
 const accountEl = document.getElementById('account-summary');
+const optionsPlSummaryEl = document.getElementById('options-pl-summary');
 const positionsBody = document.getElementById('positions-body');
 const tradesBody = document.getElementById('options-trades-body');
 const showSkippedToggle = document.getElementById('show-skipped');
@@ -39,6 +40,17 @@ function realizedBadgeHtml(acct) {
   `;
 }
 
+function unrealizedSummaryHtml(label, value) {
+  if (value == null) return '';
+  const up = value >= 0;
+  const sign = up ? '+' : '';
+  return `
+    <div class="pl-summary-line" style="color: ${up ? 'var(--green)' : 'var(--red)'}">
+      ${label} unrealized: <b>${sign}$${value.toFixed(2)}</b>
+    </div>
+  `;
+}
+
 async function refreshAccount() {
   try {
     const res = await fetch('/api/account');
@@ -49,6 +61,9 @@ async function refreshAccount() {
       ${plBadgeHtml(acct)}
       ${realizedBadgeHtml(acct)}
     `;
+    if (optionsPlSummaryEl) {
+      optionsPlSummaryEl.innerHTML = unrealizedSummaryHtml('Options', acct.options_unrealized_pl);
+    }
   } catch (e) {
     accountEl.textContent = 'Account unavailable — check Alpaca keys in .env';
   }

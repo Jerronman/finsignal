@@ -56,6 +56,9 @@ header h1 { margin: 0; font-size: 20px; }
 .pl-badge.pl-down { color: var(--red); border-color: var(--red); background: rgba(224,90,90,.12); }
 .pl-badge b { color: inherit; }
 
+.pl-summary { margin-bottom: 10px; }
+.pl-summary-line { font-size: 13px; font-weight: 500; }
+
 .tabs { display: flex; gap: 6px; }
 .tabs a {
   color: var(--muted);
