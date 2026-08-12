@@ -10,7 +10,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app import db, options_manager, poller, profit_taker
 from app.auth import BasicAuthMiddleware
-from app.routes import meta, news, options, trading, watchlist
+from app.routes import adam, meta, news, options, trading, watchlist
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 
@@ -51,6 +51,7 @@ app.include_router(trading.router, prefix="/api")
 app.include_router(watchlist.router, prefix="/api")
 app.include_router(meta.router, prefix="/api")
 app.include_router(options.router, prefix="/api")
+app.include_router(adam.router, prefix="/api")
 
 app.mount("/static", NoCacheStaticFiles(directory="static"), name="static")
 
@@ -73,3 +74,8 @@ async def strategy_page():
 @app.get("/options")
 async def options_page():
     return FileResponse("static/options.html", headers=NO_CACHE_HEADERS)
+
+
+@app.get("/adam")
+async def adam_page():
+    return FileResponse("static/adam.html", headers=NO_CACHE_HEADERS)

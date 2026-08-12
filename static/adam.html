@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FinSignal — Adam</title>
+<link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+<header>
+  <h1>FinSignal <span class="badge">PAPER TRADING</span></h1>
+  <nav class="tabs">
+    <a href="/">Activity</a>
+    <a href="/trades">Trade Log</a>
+    <a href="/strategy">Strategy</a>
+    <a href="/options">Options</a>
+    <a href="/adam" class="active">Adam</a>
+  </nav>
+  <div id="account-summary" class="account-summary">Loading account…</div>
+</header>
+
+<main class="trades-main">
+  <section>
+    <h2>Adam — Value/Pullback Screener</h2>
+    <p class="hint">
+      On-demand only — this has nothing to do with the news signal or
+      automated trading elsewhere in the app. Click Run, wait a bit (it
+      fetches each ticker from Yahoo Finance one at a time), get a table.
+      Nothing here is saved between runs.
+    </p>
+    <p class="hint">
+      Looks for stocks down <strong>5–30%</strong> from their 52-week high,
+      with reasonable valuation (P/E ≤ 25, P/B ≤ 4) and financial health
+      (Debt/Equity ≤ 150%, Current Ratio ≥ 1.2, positive free cash flow).
+    </p>
+
+    <form id="run-form">
+      <label for="tickers-input" class="hint">Tickers to screen (comma-separated):</label>
+      <textarea id="tickers-input" rows="2" placeholder="Loading your watchlist…"></textarea>
+      <button type="submit" id="run-btn">Run Screener</button>
+    </form>
+
+    <div id="status" class="hint"></div>
+
+    <div class="table-scroll">
+      <table id="adam-table">
+        <thead>
+          <tr>
+            <th>Ticker</th>
+            <th>Name</th>
+            <th>Sector</th>
+            <th>Price</th>
+            <th>52wk High</th>
+            <th>Pullback</th>
+            <th>P/E</th>
+            <th>P/B</th>
+            <th>Debt/Eq</th>
+            <th>Cur. Ratio</th>
+            <th>FCF ($M)</th>
+            <th>Margin</th>
+            <th>Mkt Cap ($B)</th>
+          </tr>
+        </thead>
+        <tbody id="adam-body">
+          <tr><td colspan="13" class="meta">Click "Run Screener" to start</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+</main>
+
+<script src="/static/adam.js"></script>
+</body>
+</html>
