@@ -150,13 +150,13 @@ function realizedBadgeHtml(acct) {
   `;
 }
 
-function unrealizedSummaryHtml(label, value) {
+function plSummaryLineHtml(label, value) {
   if (value == null) return '';
   const up = value >= 0;
   const sign = up ? '+' : '';
   return `
     <div class="pl-summary-line" style="color: ${up ? 'var(--green)' : 'var(--red)'}">
-      ${label} unrealized: <b>${sign}$${value.toFixed(2)}</b>
+      ${label}: <b>${sign}$${value.toFixed(2)}</b>
     </div>
   `;
 }
@@ -172,7 +172,9 @@ async function refreshAccount() {
       ${realizedBadgeHtml(acct)}
     `;
     if (stocksPlSummaryEl) {
-      stocksPlSummaryEl.innerHTML = unrealizedSummaryHtml('Stocks', acct.stocks_unrealized_pl);
+      stocksPlSummaryEl.innerHTML =
+        plSummaryLineHtml('Stocks unrealized (all-time, currently open)', acct.stocks_unrealized_pl) +
+        plSummaryLineHtml('Stocks realized (all-time, closed trades)', acct.stocks_realized_pl);
     }
   } catch (e) {
     accountEl.textContent = 'Account unavailable — check Alpaca keys in .env';
