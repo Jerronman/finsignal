@@ -33,6 +33,13 @@ function formatAmount(t) {
   return '—';
 }
 
+function realizedPlHtml(t) {
+  if (t.realized_pl == null) return '<span class="meta">—</span>';
+  const up = t.realized_pl >= 0;
+  const sign = up ? '+' : '';
+  return `<span style="color: ${up ? 'var(--green)' : 'var(--red)'}">${sign}$${t.realized_pl.toFixed(2)}</span>`;
+}
+
 function fillStatusHtml(t) {
   if (!t.order_id) return '<span class="meta">—</span>';
   const status = t.fill_status || 'pending';
@@ -57,6 +64,7 @@ function rowHtml(t) {
       <td><strong>${escapeHtml(t.symbol)}</strong></td>
       <td><span class="pill ${escapeHtml(t.outcome)}">${escapeHtml(t.outcome.replace(/_/g, ' '))}</span></td>
       <td>${escapeHtml(formatAmount(t))}</td>
+      <td>${realizedPlHtml(t)}</td>
       <td>${fillStatusHtml(t)}</td>
       <td class="why">${why}</td>
     </tr>
@@ -70,7 +78,7 @@ function renderTrades() {
 
   tbody.innerHTML = filtered.length
     ? filtered.map(rowHtml).join('')
-    : `<tr><td colspan="6" class="meta">${searching ? `No trades matching "${escapeHtml(symbolFilterInput.value.trim())}"` : 'No trades yet'}</td></tr>`;
+    : `<tr><td colspan="7" class="meta">${searching ? `No trades matching "${escapeHtml(symbolFilterInput.value.trim())}"` : 'No trades yet'}</td></tr>`;
 }
 
 async function loadTrades() {

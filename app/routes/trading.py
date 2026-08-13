@@ -32,7 +32,10 @@ async def orders(limit: int = 50):
 @router.get("/trades")
 async def trades(limit: int = 100, symbol: str | None = None):
     """Full trade log, each row annotated with whether its Alpaca order has
-    actually filled yet (None for rows with no order -- skips/errors).
+    actually filled yet (None for rows with no order -- skips/errors), and
+    for sold/profit_take rows, the actual $ realized on that specific sale
+    (reconstructed from Alpaca's order history, so it's accurate even for
+    rows logged before this was added).
     Pass `symbol` to search the full history at the database level rather
     than whatever's already been fetched into the page."""
     trade_rows = await asyncio.to_thread(db.get_trades, limit, symbol)
@@ -41,6 +44,16 @@ async def trades(limit: int = 100, symbol: str | None = None):
     if order_ids:
         orders_list = await asyncio.to_thread(broker.get_orders, max(len(order_ids) * 2, 100))
         status_by_id = {o["order_id"]: normalize_fill_status(o["status"]) for o in orders_list}
+
+    realized_by_order_id: dict[str, float] = {}
+    if any(t["outcome"] in ("sold", "profit_take") for t in trade_rows):
+        realized_by_order_id = await asyncio.to_thread(broker.get_realized_pl_by_order_id)
+
     for t in trade_rows:
         t["fill_status"] = status_by_id.get(t.get("order_id"))
+        t["realized_pl"] = (
+            realized_by_order_id.get(t["order_id"])
+            if t["outcome"] in ("sold", "profit_take") and t.get("order_id")
+            else None
+        )
     return trade_rows

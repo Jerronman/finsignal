@@ -180,18 +180,22 @@ class AlpacaBroker(BrokerInterface):
         except Exception:
             return 0.0
 
-    def _replay_stock_orders(self) -> tuple[float, float]:
-        """Returns (realized_pl, total_invested) by replaying every filled
-        stock order chronologically with a running weighted-average cost
-        basis per symbol. Rebuilt from Alpaca's own permanent order history
-        each call, so it's retroactively accurate -- not dependent on when
-        this tracking was added.
+    def _replay_stock_orders(self) -> tuple[float, float, dict[str, float]]:
+        """Returns (realized_pl, total_invested, realized_by_order_id) by
+        replaying every filled stock order chronologically with a running
+        weighted-average cost basis per symbol. Rebuilt from Alpaca's own
+        permanent order history each call, so it's retroactively accurate
+        -- not dependent on when this tracking was added.
 
         total_invested is the sum of every buy's dollar cost, all-time --
         i.e. total capital *deployed* over time, not capital currently at
         risk. If you buy, sell, then buy something else with that same
         money, both purchases count -- it doesn't shrink when a position
-        closes."""
+        closes.
+
+        realized_by_order_id maps each sell order's id to the $ gain/loss
+        realized by that specific sale -- lets the Trade Log show a P&L
+        figure per row (sold/profit_take) rather than only an aggregate."""
         orders = self._client.get_orders(GetOrdersRequest(limit=1000, status=QueryOrderStatus.ALL))
         stock_orders = [
             o for o in orders
@@ -203,6 +207,7 @@ class AlpacaBroker(BrokerInterface):
         avg_cost: dict[str, float] = {}
         realized_pl = 0.0
         total_invested = 0.0
+        realized_by_order_id: dict[str, float] = {}
 
         for o in stock_orders:
             symbol = o.symbol
@@ -222,10 +227,18 @@ class AlpacaBroker(BrokerInterface):
                 if prev_qty <= 0:
                     continue  # no shorting by design -- guard defensively anyway
                 sell_qty = min(qty, prev_qty)
-                realized_pl += (price - avg_cost.get(symbol, 0.0)) * sell_qty
+                gain = (price - avg_cost.get(symbol, 0.0)) * sell_qty
+                realized_pl += gain
+                realized_by_order_id[str(o.id)] = realized_by_order_id.get(str(o.id), 0.0) + gain
                 qty_held[symbol] = prev_qty - sell_qty
 
-        return realized_pl, total_invested
+        return realized_pl, total_invested, realized_by_order_id
+
+    def get_realized_pl_by_order_id(self) -> dict[str, float]:
+        """Just the per-order breakdown from _replay_stock_orders, for
+        callers (like the Trade Log) that only need that part."""
+        _, _, realized_by_order_id = self._replay_stock_orders()
+        return realized_by_order_id
 
     def get_account(self) -> dict[str, Any]:
         acct = self._client.get_account()
@@ -258,7 +271,7 @@ class AlpacaBroker(BrokerInterface):
         stocks_realized_pl = None
         stocks_total_invested = None
         try:
-            stocks_realized_pl, stocks_total_invested = self._replay_stock_orders()
+            stocks_realized_pl, stocks_total_invested, _ = self._replay_stock_orders()
         except Exception:
             log.exception("Failed to compute stocks realized P&L / total invested")
 
