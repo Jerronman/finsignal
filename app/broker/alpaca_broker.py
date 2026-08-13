@@ -180,12 +180,18 @@ class AlpacaBroker(BrokerInterface):
         except Exception:
             return 0.0
 
-    def get_stocks_realized_pl(self) -> float:
-        """All-time realized P&L for stock trades, reconstructed by
-        replaying every filled stock order chronologically with a running
-        weighted-average cost basis per symbol. Rebuilt from Alpaca's own
-        permanent order history each call, so it's retroactively accurate
-        -- not dependent on when this tracking was added."""
+    def _replay_stock_orders(self) -> tuple[float, float]:
+        """Returns (realized_pl, total_invested) by replaying every filled
+        stock order chronologically with a running weighted-average cost
+        basis per symbol. Rebuilt from Alpaca's own permanent order history
+        each call, so it's retroactively accurate -- not dependent on when
+        this tracking was added.
+
+        total_invested is the sum of every buy's dollar cost, all-time --
+        i.e. total capital *deployed* over time, not capital currently at
+        risk. If you buy, sell, then buy something else with that same
+        money, both purchases count -- it doesn't shrink when a position
+        closes."""
         orders = self._client.get_orders(GetOrdersRequest(limit=1000, status=QueryOrderStatus.ALL))
         stock_orders = [
             o for o in orders
@@ -196,6 +202,7 @@ class AlpacaBroker(BrokerInterface):
         qty_held: dict[str, float] = {}
         avg_cost: dict[str, float] = {}
         realized_pl = 0.0
+        total_invested = 0.0
 
         for o in stock_orders:
             symbol = o.symbol
@@ -204,6 +211,7 @@ class AlpacaBroker(BrokerInterface):
             side = str(o.side).split(".")[-1].lower()
 
             if side == "buy":
+                total_invested += qty * price
                 prev_qty = qty_held.get(symbol, 0.0)
                 prev_avg = avg_cost.get(symbol, 0.0)
                 new_qty = prev_qty + qty
@@ -217,7 +225,7 @@ class AlpacaBroker(BrokerInterface):
                 realized_pl += (price - avg_cost.get(symbol, 0.0)) * sell_qty
                 qty_held[symbol] = prev_qty - sell_qty
 
-        return realized_pl
+        return realized_pl, total_invested
 
     def get_account(self) -> dict[str, Any]:
         acct = self._client.get_account()
@@ -248,10 +256,20 @@ class AlpacaBroker(BrokerInterface):
             log.exception("Failed to compute realized P&L")
 
         stocks_realized_pl = None
+        stocks_total_invested = None
         try:
-            stocks_realized_pl = self.get_stocks_realized_pl()
+            stocks_realized_pl, stocks_total_invested = self._replay_stock_orders()
         except Exception:
-            log.exception("Failed to compute stocks realized P&L")
+            log.exception("Failed to compute stocks realized P&L / total invested")
+
+        stocks_unrealized_pct = (
+            (stocks_unrealized_pl / stocks_total_invested * 100) if stocks_total_invested else None
+        )
+        stocks_realized_pct = (
+            (stocks_realized_pl / stocks_total_invested * 100)
+            if stocks_total_invested and stocks_realized_pl is not None
+            else None
+        )
 
         return {
             "cash": float(acct.cash),
@@ -264,6 +282,9 @@ class AlpacaBroker(BrokerInterface):
             "stocks_unrealized_pl": stocks_unrealized_pl,
             "options_unrealized_pl": options_unrealized_pl,
             "stocks_realized_pl": stocks_realized_pl,
+            "stocks_total_invested": stocks_total_invested,
+            "stocks_unrealized_pct": stocks_unrealized_pct,
+            "stocks_realized_pct": stocks_realized_pct,
         }
 
     def get_orders(self, limit: int = 50) -> list[dict[str, Any]]:

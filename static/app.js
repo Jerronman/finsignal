@@ -150,13 +150,14 @@ function realizedBadgeHtml(acct) {
   `;
 }
 
-function plSummaryLineHtml(label, value, tooltip) {
+function plSummaryLineHtml(label, value, tooltip, pct) {
   if (value == null) return '';
   const up = value >= 0;
   const sign = up ? '+' : '';
+  const pctText = pct != null ? ` (${sign}${pct.toFixed(2)}% of invested)` : '';
   return `
     <div class="pl-summary-line" style="color: ${up ? 'var(--green)' : 'var(--red)'}" title="${tooltip || ''}">
-      ${label}: <b>${sign}$${value.toFixed(2)}</b>
+      ${label}: <b>${sign}$${value.toFixed(2)}${pctText}</b>
     </div>
   `;
 }
@@ -174,9 +175,12 @@ async function refreshAccount() {
     if (stocksPlSummaryEl) {
       stocksPlSummaryEl.innerHTML =
         plSummaryLineHtml('Stocks Unrealized', acct.stocks_unrealized_pl,
-          'All-time gain/loss on stock positions currently open') +
+          'All-time gain/loss on stock positions currently open, as a % of total dollars ever invested in stocks',
+          acct.stocks_unrealized_pct) +
         plSummaryLineHtml('Stocks Realized', acct.stocks_realized_pl,
-          'All-time gain/loss from stock trades already closed');
+          'All-time gain/loss from stock trades already closed, as a % of total dollars ever invested in stocks. ' +
+          'Note: "invested" counts every buy ever made, even if that capital was later sold and reinvested elsewhere.',
+          acct.stocks_realized_pct);
     }
   } catch (e) {
     accountEl.textContent = 'Account unavailable — check Alpaca keys in .env';
