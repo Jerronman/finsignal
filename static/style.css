@@ -212,6 +212,24 @@ h2 { margin: 0 0 12px; font-size: 13px; text-transform: uppercase; letter-spacin
 .outcome-btn:hover { opacity: .65; filter: grayscale(20%); }
 .outcome-btn.active { opacity: 1; filter: none; }
 
+.pagination {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 14px;
+}
+.pagination button {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 6px;
+  padding: 6px 12px;
+  font-size: 13px;
+  cursor: pointer;
+}
+.pagination button:disabled { opacity: .35; cursor: default; }
+.pagination button:not(:disabled):hover { border-color: var(--accent); }
+
 .table-scroll { overflow-x: auto; }
 
 #trades-table, #positions-table, #options-trades-table, #adam-table, #adam-runs-table {

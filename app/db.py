@@ -56,6 +56,12 @@ CREATE TABLE IF NOT EXISTS trades (
     reasoning TEXT,
     created_at TEXT NOT NULL
 );
+-- Trade Log is paginated newest-first -- keeps the ORDER BY off a full
+-- table scan + sort as the table grows past a few thousand rows. (Doesn't
+-- help the symbol search: that's a LIKE '%x%' with a leading wildcard,
+-- which no plain index can range-scan -- it's still a full scan either way,
+-- just over a small/cheap table so it isn't worth a covering index for.)
+CREATE INDEX IF NOT EXISTS idx_trades_created_at ON trades(created_at DESC);
 
 CREATE TABLE IF NOT EXISTS watchlist (
     symbol TEXT PRIMARY KEY,
@@ -190,7 +196,7 @@ def insert_trade(
         )
 
 
-def get_trades(limit: int = 100, symbol: str | None = None) -> list[dict[str, Any]]:
+def get_trades(limit: int = 100, symbol: str | None = None, offset: int = 0) -> list[dict[str, Any]]:
     """Full trade log (executed and skipped), newest first, with the source
     article's headline + URL attached when there is one (profit-take trims
     have no article, so both are null for those).
@@ -199,7 +205,10 @@ def get_trades(limit: int = 100, symbol: str | None = None) -> list[dict[str, An
     a search this way always finds a match regardless of how much other
     activity has happened since, unlike filtering an already-limited batch
     fetched client-side (which can silently miss older matching rows once
-    they've scrolled past the fetch window)."""
+    they've scrolled past the fetch window).
+
+    `offset` pages through results (paired with `get_trades_count` for a
+    total, so the frontend can show "101-200 of 543" and a Next button)."""
     query = """
         SELECT t.*, n.headline, n.url as headline_url
         FROM trades t
@@ -209,12 +218,25 @@ def get_trades(limit: int = 100, symbol: str | None = None) -> list[dict[str, An
     if symbol:
         query += " WHERE UPPER(t.symbol) LIKE ?"
         params.append(f"%{symbol.upper()}%")
-    query += " ORDER BY t.created_at DESC LIMIT ?"
+    query += " ORDER BY t.created_at DESC LIMIT ? OFFSET ?"
     params.append(limit)
+    params.append(offset)
 
     with get_conn() as conn:
         rows = conn.execute(query, params).fetchall()
         return [dict(r) for r in rows]
+
+
+def get_trades_count(symbol: str | None = None) -> int:
+    """Total matching row count, for pagination -- same WHERE clause as
+    get_trades but without LIMIT/OFFSET."""
+    query = "SELECT COUNT(*) FROM trades"
+    params: list[Any] = []
+    if symbol:
+        query += " WHERE UPPER(symbol) LIKE ?"
+        params.append(f"%{symbol.upper()}%")
+    with get_conn() as conn:
+        return conn.execute(query, params).fetchone()[0]
 
 
 def get_profit_take_plan(symbol: str) -> dict[str, Any] | None:

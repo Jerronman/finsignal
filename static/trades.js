@@ -2,6 +2,9 @@ const accountEl = document.getElementById('account-summary');
 const tbody = document.getElementById('trades-body');
 const outcomeFiltersEl = document.getElementById('outcome-filters');
 const symbolFilterInput = document.getElementById('symbol-filter');
+const paginationEl = document.getElementById('pagination');
+
+const PAGE_SIZE = 100;
 
 // Every outcome a trade row can have, in display order. Labels are the
 // human-readable form; the button itself is styled via the same .pill
@@ -22,8 +25,10 @@ const OUTCOMES = [
 // default view (attempted trades + blocks, not routine guardrail skips).
 const activeOutcomes = new Set(['bought', 'sold', 'profit_take', 'error', 'skipped_not_tradable']);
 
-let allTrades = [];
-let searchResults = null; // null = not searching; array = active search results from the server
+let pageTrades = [];     // rows for the currently loaded page (already server-paginated + symbol-filtered)
+let currentPage = 0;     // 0-indexed
+let currentQuery = '';   // '' = no symbol search active
+let totalCount = 0;      // total rows matching currentQuery, across all pages
 let searchDebounceTimer = null;
 
 function renderOutcomeFilters() {
@@ -108,16 +113,14 @@ function rowHtml(t) {
 }
 
 function renderTrades() {
-  const searching = searchResults !== null;
-  // AND filter: a row must match the symbol search (already applied server-side
-  // into `source`) AND have its outcome in the active filter set.
-  const source = searching ? searchResults : allTrades;
-  const filtered = source.filter(t => activeOutcomes.has(t.outcome));
+  // AND filter: this page's rows already matched the symbol search server-side
+  // (see loadPage) -- this just further narrows by the active outcome buttons.
+  const filtered = pageTrades.filter(t => activeOutcomes.has(t.outcome));
 
   const emptyReason = activeOutcomes.size === 0
     ? 'No outcome filters selected'
-    : searching
-      ? `No trades matching "${escapeHtml(symbolFilterInput.value.trim())}"`
+    : currentQuery
+      ? `No trades matching "${escapeHtml(currentQuery)}"`
       : 'No trades yet';
 
   tbody.innerHTML = filtered.length
@@ -125,28 +128,47 @@ function renderTrades() {
     : `<tr><td colspan="7" class="meta">${emptyReason}</td></tr>`;
 }
 
-async function loadTrades() {
-  const res = await fetch('/api/trades?limit=300');
-  allTrades = await res.json();
-  renderTrades();
+function renderPagination() {
+  const start = totalCount === 0 ? 0 : currentPage * PAGE_SIZE + 1;
+  const end = Math.min((currentPage + 1) * PAGE_SIZE, totalCount);
+  const hasPrev = currentPage > 0;
+  const hasNext = end < totalCount;
+
+  paginationEl.innerHTML = `
+    <button type="button" id="prev-page" ${hasPrev ? '' : 'disabled'}>◀ Prev</button>
+    <span class="meta">${start}–${end} of ${totalCount}</span>
+    <button type="button" id="next-page" ${hasNext ? '' : 'disabled'}>Next ▶</button>
+  `;
+  document.getElementById('prev-page').addEventListener('click', () => {
+    if (!hasPrev) return;
+    currentPage -= 1;
+    loadPage();
+  });
+  document.getElementById('next-page').addEventListener('click', () => {
+    if (!hasNext) return;
+    currentPage += 1;
+    loadPage();
+  });
 }
 
-async function runSearch(query) {
-  if (!query) {
-    searchResults = null;
-    renderTrades();
-    return;
-  }
-  // Searches the full history at the database level (not just whatever's
-  // already loaded) -- so an old match doesn't get missed just because a
-  // lot has happened since.
+async function loadPage() {
+  // Server-paginated: only `limit` rows cross the wire per request, and the
+  // `symbol` search runs at the database level (not client-side over an
+  // already-fetched batch), so an old match is never missed just because a
+  // lot of trading has happened since.
+  const params = new URLSearchParams({ limit: PAGE_SIZE, offset: currentPage * PAGE_SIZE });
+  if (currentQuery) params.set('symbol', currentQuery);
   try {
-    const res = await fetch(`/api/trades?symbol=${encodeURIComponent(query)}&limit=1000`);
-    searchResults = await res.json();
+    const res = await fetch(`/api/trades?${params}`);
+    const data = await res.json();
+    pageTrades = data.trades;
+    totalCount = data.total;
   } catch (e) {
-    searchResults = [];
+    pageTrades = [];
+    totalCount = 0;
   }
   renderTrades();
+  renderPagination();
 }
 
 function plBadgeHtml(acct) {
@@ -187,15 +209,15 @@ async function refreshAccount() {
 
 symbolFilterInput.addEventListener('input', () => {
   clearTimeout(searchDebounceTimer);
-  const query = symbolFilterInput.value.trim();
-  searchDebounceTimer = setTimeout(() => runSearch(query), 300);
+  searchDebounceTimer = setTimeout(() => {
+    currentQuery = symbolFilterInput.value.trim();
+    currentPage = 0; // a new search always starts back at page 1
+    loadPage();
+  }, 300);
 });
 
 renderOutcomeFilters();
-loadTrades();
+loadPage();
 refreshAccount();
-setInterval(() => {
-  loadTrades();
-  if (searchResults !== null) runSearch(symbolFilterInput.value.trim());
-}, 30000);
+setInterval(loadPage, 30000);
 setInterval(refreshAccount, 30000);

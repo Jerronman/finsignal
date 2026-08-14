@@ -30,15 +30,21 @@ async def orders(limit: int = 50):
 
 
 @router.get("/trades")
-async def trades(limit: int = 100, symbol: str | None = None):
-    """Full trade log, each row annotated with whether its Alpaca order has
-    actually filled yet (None for rows with no order -- skips/errors), and
-    for sold/profit_take rows, the actual $ realized on that specific sale
-    (reconstructed from Alpaca's order history, so it's accurate even for
-    rows logged before this was added).
+async def trades(limit: int = 100, symbol: str | None = None, offset: int = 0):
+    """One page of the trade log, each row annotated with whether its Alpaca
+    order has actually filled yet (None for rows with no order -- skips/
+    errors), and for sold/profit_take rows, the actual $ realized on that
+    specific sale (reconstructed from Alpaca's order history, so it's
+    accurate even for rows logged before this was added).
     Pass `symbol` to search the full history at the database level rather
-    than whatever's already been fetched into the page."""
-    trade_rows = await asyncio.to_thread(db.get_trades, limit, symbol)
+    than whatever's already been fetched into the page. `offset` pages
+    through results `limit` at a time; the response's `total` is the full
+    matching count so the frontend can render "101-200 of 543" and a Next
+    button without a separate request."""
+    trade_rows, total = await asyncio.gather(
+        asyncio.to_thread(db.get_trades, limit, symbol, offset),
+        asyncio.to_thread(db.get_trades_count, symbol),
+    )
     order_ids = {t["order_id"] for t in trade_rows if t.get("order_id")}
     status_by_id: dict[str, str] = {}
     if order_ids:
@@ -56,4 +62,4 @@ async def trades(limit: int = 100, symbol: str | None = None):
             if t["outcome"] in ("sold", "profit_take") and t.get("order_id")
             else None
         )
-    return trade_rows
+    return {"trades": trade_rows, "total": total, "offset": offset, "limit": limit}
