@@ -1,15 +1,51 @@
 const accountEl = document.getElementById('account-summary');
 const tbody = document.getElementById('trades-body');
-const showSkippedToggle = document.getElementById('show-skipped');
+const outcomeFiltersEl = document.getElementById('outcome-filters');
 const symbolFilterInput = document.getElementById('symbol-filter');
 
-// Shown even with "show skipped" off -- these are attempted trades that
-// were blocked, not routine guardrail skips (hold/low-confidence/cooldown).
-const ALWAYS_VISIBLE = new Set(['bought', 'sold', 'profit_take', 'error', 'skipped_not_tradable']);
+// Every outcome a trade row can have, in display order. Labels are the
+// human-readable form; the button itself is styled via the same .pill
+// classes used for the Outcome column so colors line up.
+const OUTCOMES = [
+  { value: 'bought', label: 'Bought' },
+  { value: 'sold', label: 'Sold' },
+  { value: 'profit_take', label: 'Profit take' },
+  { value: 'error', label: 'Error' },
+  { value: 'skipped_not_tradable', label: 'Skipped: not tradable' },
+  { value: 'skipped_cooldown', label: 'Skipped: cooldown' },
+  { value: 'skipped_hold', label: 'Skipped: hold' },
+  { value: 'skipped_low_confidence', label: 'Skipped: low confidence' },
+  { value: 'skipped_no_position', label: 'Skipped: no position' },
+];
+
+// Active by default -- matches the old "show skipped decisions too" unchecked
+// default view (attempted trades + blocks, not routine guardrail skips).
+const activeOutcomes = new Set(['bought', 'sold', 'profit_take', 'error', 'skipped_not_tradable']);
 
 let allTrades = [];
 let searchResults = null; // null = not searching; array = active search results from the server
 let searchDebounceTimer = null;
+
+function renderOutcomeFilters() {
+  outcomeFiltersEl.innerHTML = OUTCOMES.map(o => `
+    <button type="button"
+      class="outcome-btn pill ${escapeHtml(o.value)} ${activeOutcomes.has(o.value) ? 'active' : ''}"
+      data-outcome="${escapeHtml(o.value)}">${escapeHtml(o.label)}</button>
+  `).join('');
+}
+
+outcomeFiltersEl.addEventListener('click', (e) => {
+  const btn = e.target.closest('.outcome-btn');
+  if (!btn) return;
+  const outcome = btn.dataset.outcome;
+  if (activeOutcomes.has(outcome)) {
+    activeOutcomes.delete(outcome);
+  } else {
+    activeOutcomes.add(outcome);
+  }
+  btn.classList.toggle('active');
+  renderTrades();
+});
 
 function escapeHtml(s) {
   const div = document.createElement('div');
@@ -73,12 +109,20 @@ function rowHtml(t) {
 
 function renderTrades() {
   const searching = searchResults !== null;
+  // AND filter: a row must match the symbol search (already applied server-side
+  // into `source`) AND have its outcome in the active filter set.
   const source = searching ? searchResults : allTrades;
-  const filtered = showSkippedToggle.checked ? source : source.filter(t => ALWAYS_VISIBLE.has(t.outcome));
+  const filtered = source.filter(t => activeOutcomes.has(t.outcome));
+
+  const emptyReason = activeOutcomes.size === 0
+    ? 'No outcome filters selected'
+    : searching
+      ? `No trades matching "${escapeHtml(symbolFilterInput.value.trim())}"`
+      : 'No trades yet';
 
   tbody.innerHTML = filtered.length
     ? filtered.map(rowHtml).join('')
-    : `<tr><td colspan="7" class="meta">${searching ? `No trades matching "${escapeHtml(symbolFilterInput.value.trim())}"` : 'No trades yet'}</td></tr>`;
+    : `<tr><td colspan="7" class="meta">${emptyReason}</td></tr>`;
 }
 
 async function loadTrades() {
@@ -141,13 +185,13 @@ async function refreshAccount() {
   }
 }
 
-showSkippedToggle.addEventListener('change', renderTrades);
 symbolFilterInput.addEventListener('input', () => {
   clearTimeout(searchDebounceTimer);
   const query = symbolFilterInput.value.trim();
   searchDebounceTimer = setTimeout(() => runSearch(query), 300);
 });
 
+renderOutcomeFilters();
 loadTrades();
 refreshAccount();
 setInterval(() => {

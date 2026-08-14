@@ -201,6 +201,17 @@ h2 { margin: 0 0 12px; font-size: 13px; text-transform: uppercase; letter-spacin
   width: 160px;
 }
 
+.outcome-filters { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+.outcome-btn {
+  cursor: pointer;
+  font-family: inherit;
+  opacity: .35;
+  filter: grayscale(60%);
+  transition: opacity .1s, filter .1s;
+}
+.outcome-btn:hover { opacity: .65; filter: grayscale(20%); }
+.outcome-btn.active { opacity: 1; filter: none; }
+
 .table-scroll { overflow-x: auto; }
 
 #trades-table, #positions-table, #options-trades-table, #adam-table, #adam-runs-table {
