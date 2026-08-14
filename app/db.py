@@ -253,6 +253,17 @@ def mark_tier_triggered(symbol: str, threshold: float) -> None:
         )
 
 
+def update_profit_take_original_qty(symbol: str, new_original_qty: float) -> None:
+    """Corrects a plan's original_qty -- used when the checker detects the
+    snapshot was taken before a buy order had fully settled (so it locked
+    onto a smaller-than-real quantity)."""
+    with get_conn() as conn:
+        conn.execute(
+            "UPDATE profit_take_plans SET original_qty = ? WHERE symbol = ?",
+            (new_original_qty, symbol),
+        )
+
+
 def clear_stale_profit_take_plans(open_symbols: set[str]) -> None:
     """Drop plans for symbols no longer held, so a future re-buy starts a
     fresh tiered plan instead of resuming a stale, already-mostly-triggered one."""
@@ -397,6 +408,16 @@ def mark_option_tier_triggered(contract_symbol: str, threshold: float) -> None:
         conn.execute(
             "UPDATE option_position_plans SET triggered_tiers = ? WHERE contract_symbol = ?",
             (",".join(existing), contract_symbol),
+        )
+
+
+def update_option_plan_original_qty(contract_symbol: str, new_original_qty: int) -> None:
+    """Same self-healing correction as update_profit_take_original_qty, for
+    option contract plans."""
+    with get_conn() as conn:
+        conn.execute(
+            "UPDATE option_position_plans SET original_qty = ? WHERE contract_symbol = ?",
+            (new_original_qty, contract_symbol),
         )
 
 

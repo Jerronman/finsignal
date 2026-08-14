@@ -61,6 +61,25 @@ async def _check_position(position: dict) -> None:
     if plan is None:
         return
 
+    # Self-heal a stale snapshot: same fix as the stock take-profit checker
+    # (profit_taker.py) -- if original_qty was captured before the buy order
+    # had fully settled, reconstruct the true original size from what's
+    # actually left plus whatever's already been trimmed, and correct it
+    # going forward.
+    already_trimmed = sum(
+        fraction * plan["original_qty"]
+        for threshold, fraction in config.OPTIONS_TIERS
+        if threshold in plan["triggered_tiers"]
+    )
+    true_original = qty + already_trimmed
+    if true_original > plan["original_qty"] * 1.0001:
+        log.info(
+            "Correcting options plan for %s: original_qty %.6f -> %.6f (stale fill-timing snapshot)",
+            contract_symbol, plan["original_qty"], true_original,
+        )
+        db.update_option_plan_original_qty(contract_symbol, round(true_original))
+        plan["original_qty"] = round(true_original)
+
     if _past_thursday_cutoff(plan["expiration_date"]):
         try:
             result = await asyncio.to_thread(broker.sell_option_qty, contract_symbol, int(qty))

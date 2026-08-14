@@ -45,6 +45,27 @@ async def _check_position(position: dict) -> None:
         db.create_profit_take_plan(symbol, qty)
         return  # first time seeing this position -- nothing to trim yet
 
+    # Self-heal a stale snapshot: if the plan's original_qty was captured
+    # before the buy order had fully settled (Alpaca briefly shows a
+    # partial-fill quantity), later checks will see a real qty larger than
+    # what the plan's own bookkeeping predicts should remain. Reconstruct
+    # the true original size from what's actually left plus whatever's
+    # already been trimmed, and correct it going forward -- already-fired
+    # tiers can't be undone, but every tier from here on uses the right size.
+    already_trimmed = sum(
+        fraction * plan["original_qty"]
+        for threshold, fraction in config.TAKE_PROFIT_TIERS
+        if threshold in plan["triggered_tiers"]
+    )
+    true_original = qty + already_trimmed
+    if true_original > plan["original_qty"] * 1.0001:
+        log.info(
+            "Correcting take-profit plan for %s: original_qty %.6f -> %.6f (stale fill-timing snapshot)",
+            symbol, plan["original_qty"], true_original,
+        )
+        db.update_profit_take_original_qty(symbol, true_original)
+        plan["original_qty"] = true_original
+
     remaining_qty = qty
     for i, (threshold, fraction) in enumerate(config.TAKE_PROFIT_TIERS):
         if threshold in plan["triggered_tiers"] or gain_pct < threshold:
