@@ -25,6 +25,7 @@ class AlpacaBroker(BrokerInterface):
         )
         self._stock_data_client = StockHistoricalDataClient(config.ALPACA_API_KEY, config.ALPACA_SECRET_KEY)
         self._asset_name_cache: dict[str, str] = {}
+        self._fractionable_cache: dict[str, bool] = {}
 
     def _get_asset_name(self, symbol: str) -> str:
         """Company name for a symbol, e.g. 'Apple Inc.' for AAPL -- cached
@@ -49,6 +50,31 @@ class AlpacaBroker(BrokerInterface):
         except Exception:
             log.exception("Failed to check market clock -- defaulting to regular-hours order construction")
             return True
+
+    def _is_fractionable(self, symbol: str) -> bool:
+        """Cached per symbol since fractionability never changes intraday,
+        and this gets checked on every order for a position (each tiered
+        take-profit trim, not just the initial buy). Defaults to False
+        (whole-shares-only) if the lookup itself fails -- always a valid
+        order regardless of the asset's true fractionability, whereas
+        assuming fractionable when it isn't gets the order rejected."""
+        if symbol not in self._fractionable_cache:
+            try:
+                self._fractionable_cache[symbol] = bool(self._client.get_asset(symbol).fractionable)
+            except Exception:
+                log.exception("Failed to check fractionability for %s -- rounding to whole shares to be safe", symbol)
+                self._fractionable_cache[symbol] = False
+        return self._fractionable_cache[symbol]
+
+    def _round_qty(self, symbol: str, qty: float) -> float:
+        """Alpaca rejects fractional quantities outright for stocks that
+        aren't fractionable (most low-float/small-cap names) -- round to
+        the nearest whole share for those; a 0-share result gets bumped up
+        to 1 since that's not actually a trade. Fractionable stocks pass
+        through unchanged, at full precision."""
+        if self._is_fractionable(symbol):
+            return qty
+        return max(1.0, round(qty))
 
     def _get_stock_price(self, symbol: str) -> float | None:
         try:
@@ -88,13 +114,24 @@ class AlpacaBroker(BrokerInterface):
 
     def place_notional_order(self, symbol: str, side: str, notional_usd: float) -> dict[str, Any]:
         order_side = OrderSide.BUY if side == "buy" else OrderSide.SELL
+        extended_hours = config.EXTENDED_HOURS_ENABLED and not self._is_regular_hours()
+        fractionable = self._is_fractionable(symbol)
 
-        if config.EXTENDED_HOURS_ENABLED and not self._is_regular_hours():
+        if extended_hours or not fractionable:
+            # Extended hours always needs an explicit qty (notional orders are
+            # rejected outside regular hours); non-fractionable stocks need a
+            # whole-share qty too, in or out of hours, since a notional order
+            # would otherwise size a fractional share count Alpaca rejects.
             price = self._get_stock_price(symbol)
             if not price or price <= 0:
-                raise RuntimeError(f"Could not get a current price for {symbol} to size an extended-hours order")
+                raise RuntimeError(f"Could not get a current price for {symbol} to size the order")
             qty = round(notional_usd / price, 6)
-            req = self._extended_hours_limit_order(symbol, order_side, qty)
+            if not fractionable:
+                qty = self._round_qty(symbol, qty)
+            if extended_hours:
+                req = self._extended_hours_limit_order(symbol, order_side, qty)
+            else:
+                req = MarketOrderRequest(symbol=symbol, qty=qty, side=order_side, time_in_force=TimeInForce.DAY)
         else:
             req = MarketOrderRequest(
                 symbol=symbol,
@@ -133,6 +170,11 @@ class AlpacaBroker(BrokerInterface):
         }
 
     def sell_qty(self, symbol: str, qty: float) -> dict[str, Any]:
+        # Tiered take-profit trims sell a fraction of the original share
+        # count (e.g. 25%), which can land on a fractional number of shares
+        # even for a non-fractionable stock (whole original_qty * 0.25 isn't
+        # necessarily whole) -- round those down/up to a whole share here.
+        qty = self._round_qty(symbol, qty)
         if config.EXTENDED_HOURS_ENABLED and not self._is_regular_hours():
             req = self._extended_hours_limit_order(symbol, OrderSide.SELL, qty)
         else:
