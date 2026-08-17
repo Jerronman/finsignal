@@ -5,7 +5,6 @@ const accountEl = document.getElementById('account-summary');
 const watchlistListEl = document.getElementById('watchlist-list');
 const watchlistForm = document.getElementById('watchlist-form');
 const watchlistInput = document.getElementById('watchlist-input');
-const speakToggle = document.getElementById('speak-toggle');
 
 const cardsByArticle = new Map();
 
@@ -13,13 +12,6 @@ function escapeHtml(s) {
   const div = document.createElement('div');
   div.textContent = s || '';
   return div.innerHTML;
-}
-
-function speak(text) {
-  if (!speakToggle.checked || !('speechSynthesis' in window)) return;
-  const utter = new SpeechSynthesisUtterance(text);
-  utter.rate = 1.05;
-  window.speechSynthesis.speak(utter);
 }
 
 function notify(title, body) {
@@ -222,7 +214,6 @@ function connectStream() {
     if (data.type === 'news') {
       renderCard(data);
       notify('New financial news', data.headline);
-      speak(data.headline);
     } else if (data.type === 'verdict') {
       const label = `${data.action} (${Math.round((data.confidence || 0) * 100)}%)`;
       upsertPill(data.article_id, data.symbol, data.action, label);
@@ -239,7 +230,6 @@ function connectStream() {
         label = `${data.symbol}: ${data.outcome.replace(/_/g, ' ')}`;
       }
       notify('Paper trade executed', label);
-      speak(label);
       refreshPositions();
       refreshAccount();
     }
