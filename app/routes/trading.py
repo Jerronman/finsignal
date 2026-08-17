@@ -63,3 +63,14 @@ async def trades(limit: int = 100, symbol: str | None = None, offset: int = 0):
             else None
         )
     return {"trades": trade_rows, "total": total, "offset": offset, "limit": limit}
+
+
+@router.post("/admin/reset-trading-state")
+async def reset_trading_state():
+    """Wipes the local Trade Log, take-profit plans, and cooldowns -- for
+    switching to a different Alpaca account (see the Trade Log page's Reset
+    button). Already behind the app's Basic Auth like every other route, and
+    only touches locally-stored bookkeeping -- it can't place or cancel any
+    real order on Alpaca's side."""
+    deleted = await asyncio.to_thread(db.reset_trading_state)
+    return {"deleted": deleted}

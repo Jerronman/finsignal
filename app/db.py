@@ -477,6 +477,36 @@ def get_adam_runs(limit: int = 50) -> list[dict[str, Any]]:
     return out
 
 
+# Tables that hold trade/position bookkeeping tied to a specific Alpaca
+# account -- wiped together when switching to a different account (see
+# reset_trading_state) so nothing from the old account lingers. News/verdict
+# history, the watchlist, and Adam screener runs aren't account-specific and
+# are left alone.
+RESETTABLE_TABLES = [
+    "trades",
+    "profit_take_plans",
+    "symbol_cooldowns",
+    "option_trades",
+    "option_cooldowns",
+    "option_position_plans",
+]
+
+
+def reset_trading_state() -> dict[str, int]:
+    """Wipes all local trade history and plan/cooldown bookkeeping -- for
+    switching to a different Alpaca account, so the Trade Log and take-profit
+    plans don't carry over stale rows from an account this app no longer
+    talks to. Real positions/orders live on Alpaca's side and already
+    reflect whichever account's keys are active; this only clears what's
+    stored locally. Returns the row count deleted from each table."""
+    deleted: dict[str, int] = {}
+    with get_conn() as conn:
+        for table in RESETTABLE_TABLES:
+            cur = conn.execute(f"DELETE FROM {table}")
+            deleted[table] = cur.rowcount
+    return deleted
+
+
 def get_recent_activity(limit: int = 50) -> list[dict[str, Any]]:
     """News items joined with their per-symbol verdict + resulting trade outcome.
 

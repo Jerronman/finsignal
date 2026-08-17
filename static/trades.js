@@ -3,6 +3,7 @@ const tbody = document.getElementById('trades-body');
 const outcomeFiltersEl = document.getElementById('outcome-filters');
 const symbolFilterInput = document.getElementById('symbol-filter');
 const paginationEl = document.getElementById('pagination');
+const resetTradingBtn = document.getElementById('reset-trading-btn');
 
 const PAGE_SIZE = 100;
 
@@ -206,6 +207,34 @@ async function refreshAccount() {
     accountEl.textContent = 'Account unavailable — check Alpaca keys in .env';
   }
 }
+
+resetTradingBtn.addEventListener('click', async () => {
+  const confirmed = confirm(
+    'This permanently deletes the Trade Log, take-profit plans, and cooldowns stored in this app.\n\n' +
+    "It doesn't touch anything on Alpaca -- only this app's local bookkeeping.\n\n" +
+    'This cannot be undone. Continue?'
+  );
+  if (!confirmed) return;
+
+  resetTradingBtn.disabled = true;
+  resetTradingBtn.textContent = 'Resetting…';
+  try {
+    const res = await fetch('/api/admin/reset-trading-state', { method: 'POST' });
+    if (!res.ok) throw new Error(`server returned ${res.status}`);
+    const data = await res.json();
+    const total = Object.values(data.deleted).reduce((a, b) => a + b, 0);
+    alert(`Done -- deleted ${total} rows across ${Object.keys(data.deleted).length} tables.`);
+    currentPage = 0;
+    currentQuery = '';
+    symbolFilterInput.value = '';
+    loadPage();
+  } catch (e) {
+    alert(`Reset failed: ${e.message}`);
+  } finally {
+    resetTradingBtn.disabled = false;
+    resetTradingBtn.textContent = 'Reset Trading Data';
+  }
+});
 
 symbolFilterInput.addEventListener('input', () => {
   clearTimeout(searchDebounceTimer);
