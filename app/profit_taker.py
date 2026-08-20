@@ -1,17 +1,14 @@
-"""Background loop: independent of the news signal entirely. Tiered
+"""Background loop: independent of the news signal entirely. Simple
 profit-taking based on gain since YOUR entry price (Alpaca's
-unrealized_plpc -- not "today's" move). Each tier sells a fixed fraction
-of the ORIGINAL share count once crossed, so by the highest tier the whole
-position has been sold off in stages.
+unrealized_plpc -- not "today's" move): once a stock position is up 15%
+since entry, sell the whole thing. No partial/staged trims -- one
+all-or-nothing exit per position.
 
-Example with the default tiers (5%, 10%, 20%, 50%, each 25% of original):
-  up 5%  -> sell 25% of original shares
-  up 10% -> sell another 25% of original shares (50% sold total)
-  up 20% -> sell another 25% (75% sold total)
-  up 50% -> sell whatever's left (100% sold, position fully closed)
-
-If price gaps past several tiers between checks, all newly-crossed tiers
-fire in the same pass rather than only the highest one.
+The underlying checker still speaks in "tiers" (config.TAKE_PROFIT_TIERS,
+a list of (threshold, fraction) pairs) for compatibility, but the default
+config is now just a single 15:1.0 tier -- up 15% sells 100% of the
+original share count, done. If price gaps past 15% between checks, it
+still just sells everything on that first check that sees it.
 
 "Original" is snapshotted the first time this checker sees an open
 position for a symbol -- if more shares are bought later while a plan
